@@ -247,7 +247,7 @@ mod tests {
     fn test_to_sql_value_conversions() {
         assert_eq!(true.to_sql_value(), SqlValue::Bool(true));
         assert_eq!(42_i32.to_sql_value(), SqlValue::Int(42));
-        assert_eq!(3.14_f64.to_sql_value(), SqlValue::Float(3.14));
+        assert_eq!(2.5_f64.to_sql_value(), SqlValue::Float(2.5));
         assert_eq!(
             "hello".to_sql_value(),
             SqlValue::Text(String::from("hello"))

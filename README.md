@@ -1,7 +1,3 @@
----
-sidebar_position: 0
----
-
 # Oxide SQL
 
 A type-safe SQL parser and builder for Rust with compile-time validation and
@@ -12,13 +8,14 @@ SQL injection prevention.
 - **Type-Safe SQL Building**: Invalid SQL constructs are caught at compile time
   using the typestate pattern
 - **SQL Injection Prevention**: All user input is automatically parameterized
-- **Hand-Written Parser**: Recursive descent parser with Pratt expression parsing
+- **Hand-Written Parser**: Recursive descent parser with Pratt expression
+  parsing
 - **no_std Support**: Works in embedded and WebAssembly environments
 - **SQLite Extensions**: SQLite-specific syntax like UPSERT
 
-## Quick Start
+## Installation
 
-Add the dependencies to your `Cargo.toml`:
+Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
@@ -26,12 +23,14 @@ oxide-sql-core = "0.1"
 oxide-sql-sqlite = "0.1"  # Optional, for SQLite-specific features
 ```
 
-### Building Type-Safe Queries
+## Quick Start
+
+### Type-Safe Query Building
 
 ```rust
 use oxide_sql_core::builder::{Select, col};
 
-// This compiles - valid SELECT statement
+// Valid: Complete SELECT statement
 let (sql, params) = Select::new()
     .columns(&["id", "name"])
     .from("users")
@@ -40,7 +39,7 @@ let (sql, params) = Select::new()
 
 assert_eq!(sql, "SELECT id, name FROM users WHERE active = ?");
 
-// This would NOT compile - missing FROM clause
+// This would NOT compile - missing FROM clause:
 // let query = Select::new()
 //     .columns(&["id", "name"])
 //     .build();  // Error: method `build` not found
@@ -64,13 +63,41 @@ let (sql, params) = Select::new()
 // The malicious input is safely stored as a parameter
 ```
 
-## Why Oxide SQL?
+### SQLite UPSERT
 
-1. **Compile-Time Safety**: Catch SQL syntax errors before runtime
-2. **Security First**: SQL injection is prevented by design
-3. **Zero Runtime Overhead**: Type states are zero-sized types
-4. **Extensible**: Support for database-specific dialects
+```rust
+use oxide_sql_sqlite::builder::Upsert;
+use oxide_sql_core::builder::col;
+
+let (sql, params) = Upsert::new()
+    .into_table("users")
+    .columns(&["id", "name", "email"])
+    .values(&[&1_i32, &"Alice", &"alice@example.com"])
+    .on_conflict(&["id"])
+    .do_update(&["name", "email"])
+    .build();
+```
+
+## Crates
+
+- **oxide-sql-core**: Core parser and type-safe builders
+- **oxide-sql-sqlite**: SQLite-specific extensions
 
 ## Documentation
 
-- [SQL Security Guide](./security/)
+- [Online Documentation](https://leakix.github.io/oxide-sql/)
+- [API Reference](https://docs.rs/oxide-sql-core)
+
+## Development
+
+```bash
+make build          # Build the project
+make test           # Run tests
+make lint           # Run clippy
+make format         # Format code
+make doc-dev        # Run documentation dev server
+```
+
+## License
+
+MIT

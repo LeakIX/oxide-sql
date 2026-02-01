@@ -27,7 +27,6 @@ Oxide SQL is designed to prevent all common SQL injection attacks:
 ## Prevention
 
 - [Prevention Techniques](./prevention) - How to defend against SQL injection
-- [How Oxide SQL Helps](./oxide-sql-protection) - Built-in protections
 
 ## Real-World Examples
 

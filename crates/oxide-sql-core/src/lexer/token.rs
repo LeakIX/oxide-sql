@@ -161,6 +161,7 @@ pub enum Keyword {
 impl Keyword {
     /// Attempts to parse a keyword from a string (case-insensitive).
     #[must_use]
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         // Convert to uppercase for comparison
         match s.to_ascii_uppercase().as_str() {

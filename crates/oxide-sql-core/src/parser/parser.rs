@@ -565,6 +565,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an expression using Pratt parsing.
+    #[allow(clippy::while_let_loop)]
     fn parse_expression(&mut self, min_bp: u8) -> Result<Expr, ParseError> {
         // Parse prefix (primary expression or unary operator)
         let mut lhs = self.parse_prefix()?;
@@ -1238,26 +1239,28 @@ mod tests {
     #[test]
     fn test_parameter_placeholders() {
         let stmt = parse("SELECT * FROM users WHERE id = ? AND name = :name").unwrap();
-        if let Statement::Select(select) = stmt {
-            if let Some(Expr::Binary { left, right, .. }) = &select.where_clause {
-                // First condition: id = ?
-                if let Expr::Binary { right: param1, .. } = left.as_ref() {
-                    assert!(matches!(
-                        param1.as_ref(),
-                        Expr::Parameter {
-                            name: None,
-                            position: 1
-                        }
-                    ));
+        let Statement::Select(select) = stmt else {
+            panic!("Expected SELECT statement");
+        };
+        let Some(Expr::Binary { left, right, .. }) = &select.where_clause else {
+            panic!("Expected Binary expression in WHERE clause");
+        };
+        // First condition: id = ?
+        if let Expr::Binary { right: param1, .. } = left.as_ref() {
+            assert!(matches!(
+                param1.as_ref(),
+                Expr::Parameter {
+                    name: None,
+                    position: 1
                 }
-                // Second condition: name = :name
-                if let Expr::Binary { right: param2, .. } = right.as_ref() {
-                    assert!(matches!(
-                        param2.as_ref(),
-                        Expr::Parameter { name: Some(n), .. } if n == "name"
-                    ));
-                }
-            }
+            ));
+        }
+        // Second condition: name = :name
+        if let Expr::Binary { right: param2, .. } = right.as_ref() {
+            assert!(matches!(
+                param2.as_ref(),
+                Expr::Parameter { name: Some(n), .. } if n == "name"
+            ));
         }
     }
 

@@ -25,7 +25,7 @@ mod select;
 mod update;
 pub mod value;
 
-pub use delete::Delete;
+pub use delete::{Delete, SafeDelete, SafeDeleteWithWhere};
 pub use expr::{Column, ExprBuilder, col};
 pub use insert::Insert;
 pub use select::Select;

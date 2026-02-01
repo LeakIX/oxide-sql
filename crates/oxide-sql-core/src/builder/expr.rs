@@ -227,6 +227,7 @@ impl ExprBuilder {
 
     /// Negates the expression with NOT.
     #[must_use]
+    #[allow(clippy::should_implement_trait)]
     pub fn not(self) -> Self {
         Self {
             sql: format!("NOT {}", self.sql),

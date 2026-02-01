@@ -450,7 +450,6 @@ mod tests {
 
     #[test]
     fn test_single_line_comment() {
-        let tokens = tokenize("SELECT -- this is a comment\nFROM");
         assert_eq!(
             token_kinds("SELECT -- comment\nFROM"),
             vec![
@@ -463,7 +462,6 @@ mod tests {
 
     #[test]
     fn test_multi_line_comment() {
-        let tokens = tokenize("SELECT /* comment */ FROM");
         assert_eq!(
             token_kinds("SELECT /* comment */ FROM"),
             vec![
@@ -541,9 +539,9 @@ mod tests {
     #[test]
     fn test_floats() {
         assert_eq!(
-            token_kinds("3.14 0.5 1e10 2.5e-3"),
+            token_kinds("2.5 0.5 1e10 2.5e-3"),
             vec![
-                TokenKind::Float(3.14),
+                TokenKind::Float(2.5),
                 TokenKind::Float(0.5),
                 TokenKind::Float(1e10),
                 TokenKind::Float(2.5e-3),

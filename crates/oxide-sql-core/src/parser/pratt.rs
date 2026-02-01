@@ -98,6 +98,7 @@ pub const fn infix_binding_power(kind: &TokenKind) -> Option<(u8, u8)> {
 ///
 /// Returns `None` if the token is not a postfix operator.
 #[must_use]
+#[allow(dead_code)]
 pub const fn postfix_binding_power(kind: &TokenKind) -> Option<u8> {
     match kind {
         // IS NULL, IS NOT NULL

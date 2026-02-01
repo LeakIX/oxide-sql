@@ -13,7 +13,7 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://dannywillems.github.io',
+  url: 'https://leakix.github.io',
   baseUrl: '/oxide-sql/',
 
   onBrokenLinks: 'throw',
@@ -22,6 +22,8 @@ const config: Config = {
     defaultLocale: 'en',
     locales: ['en'],
   },
+
+  plugins: ['docusaurus-plugin-sass'],
 
   presets: [
     [
@@ -78,7 +80,7 @@ const config: Config = {
           label: 'Documentation',
         },
         {
-          href: 'https://github.com/dannywillems/oxide-sql',
+          href: 'https://github.com/leakix/oxide-sql',
           label: 'GitHub',
           position: 'right',
         },
