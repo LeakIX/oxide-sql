@@ -22,6 +22,7 @@ mod delete;
 mod expr;
 mod insert;
 mod select;
+pub mod typed;
 mod update;
 pub mod value;
 
@@ -29,5 +30,6 @@ pub use delete::{Delete, SafeDelete, SafeDeleteWithWhere};
 pub use expr::{Column, ExprBuilder, col};
 pub use insert::Insert;
 pub use select::Select;
+pub use typed::{TypedSelect, typed_col};
 pub use update::Update;
 pub use value::{SqlValue, ToSqlValue};

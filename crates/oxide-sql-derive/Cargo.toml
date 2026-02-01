@@ -1,0 +1,16 @@
+[package]
+name = "oxide-sql-derive"
+description = "Derive macros for type-safe SQL table definitions"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"

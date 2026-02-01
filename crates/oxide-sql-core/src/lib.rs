@@ -61,8 +61,10 @@ pub mod builder;
 pub mod dialect;
 pub mod lexer;
 pub mod parser;
+pub mod schema;
 
 pub use ast::{Expr, Statement};
 pub use builder::{Delete, Insert, Select, Update, col};
 pub use lexer::{Lexer, Token, TokenKind};
 pub use parser::{ParseError, Parser};
+pub use schema::{Column, Selectable, Table, TypedColumn};

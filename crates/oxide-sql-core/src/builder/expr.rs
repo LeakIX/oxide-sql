@@ -153,6 +153,17 @@ impl ExprBuilder {
         }
     }
 
+    /// Creates a column reference expression.
+    ///
+    /// This is used internally by typed column accessors.
+    #[must_use]
+    pub fn column(name: &str) -> Self {
+        Self {
+            sql: String::from(name),
+            params: vec![],
+        }
+    }
+
     /// Creates an expression from a value (parameterized).
     #[must_use]
     pub fn value<T: ToSqlValue>(value: T) -> Self {
