@@ -1,0 +1,19 @@
+[package]
+name = "oxide-sql-sqlite"
+description = "SQLite-specific SQL parser and builder extensions"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["std"]
+std = ["alloc", "oxide-sql-core/std"]
+alloc = ["oxide-sql-core/alloc"]
+
+[dependencies]
+oxide-sql-core.workspace = true
+
+[lints]
+workspace = true

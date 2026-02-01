@@ -1,0 +1,33 @@
+//! Type-Safe SQL Builder
+//!
+//! This module provides a type-safe SQL builder using the typestate pattern.
+//! Invalid SQL constructs are caught at compile time.
+//!
+//! # Example
+//!
+//! ```rust
+//! use oxide_sql_core::builder::{Select, col};
+//!
+//! // Valid: Complete SELECT statement
+//! let (sql, params) = Select::new()
+//!     .columns(&["id", "name"])
+//!     .from("users")
+//!     .where_clause(col("active").eq(true))
+//!     .build();
+//!
+//! assert_eq!(sql, "SELECT id, name FROM users WHERE active = ?");
+//! ```
+
+mod delete;
+mod expr;
+mod insert;
+mod select;
+mod update;
+pub mod value;
+
+pub use delete::Delete;
+pub use expr::{Column, ExprBuilder, col};
+pub use insert::Insert;
+pub use select::Select;
+pub use update::Update;
+pub use value::{SqlValue, ToSqlValue};
