@@ -73,4 +73,7 @@ let (sql, params) = Select::new()
 
 ## Documentation
 
-- [SQL Security Guide](./security/)
+- [Getting Started](./getting-started) - Installation and basic usage
+- [SQL Builders](./builders/) - SELECT, INSERT, UPDATE, DELETE builders
+- [Type-Safe Schema](./schema/) - Define tables with derive macros
+- [SQL Security Guide](./security/) - SQL injection and prevention
