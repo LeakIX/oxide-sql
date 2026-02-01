@@ -16,7 +16,6 @@ repository = "https://github.com/leakix/oxide-sql"
 [workspace.dependencies]
 oxide-sql-core = { path = "crates/oxide-sql-core" }
 oxide-sql-derive = { path = "crates/oxide-sql-derive" }
-thiserror = "2"
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"

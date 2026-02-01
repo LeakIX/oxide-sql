@@ -13,4 +13,3 @@ std = ["alloc"]
 alloc = []
 
 [dependencies]
-thiserror.workspace = true
