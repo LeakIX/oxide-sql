@@ -1,8 +1,5 @@
 //! Token types for the SQL lexer.
 
-#[cfg(feature = "alloc")]
-use alloc::string::String;
-
 use super::Span;
 
 /// SQL keywords.
@@ -428,15 +425,12 @@ pub enum TokenKind {
     /// Float literal (e.g., 3.14)
     Float(f64),
     /// String literal (e.g., 'hello')
-    #[cfg(feature = "alloc")]
     String(String),
     /// Blob literal (e.g., X'1234')
-    #[cfg(feature = "alloc")]
-    Blob(alloc::vec::Vec<u8>),
+    Blob(Vec<u8>),
 
     // Identifiers and keywords
     /// Identifier (e.g., column_name)
-    #[cfg(feature = "alloc")]
     Identifier(String),
     /// SQL keyword
     Keyword(Keyword),
@@ -505,7 +499,6 @@ pub enum TokenKind {
     /// End of input
     Eof,
     /// Invalid/unknown token
-    #[cfg(feature = "alloc")]
     Error(String),
 }
 

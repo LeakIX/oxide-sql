@@ -3,10 +3,7 @@
 //! This module provides query builders that use compile-time type checking
 //! to ensure that column names are valid for the table being queried.
 
-#[cfg(feature = "alloc")]
-use alloc::{string::String, vec, vec::Vec};
-
-use core::marker::PhantomData;
+use std::marker::PhantomData;
 
 use crate::schema::{Column, Selectable, Table};
 
@@ -29,7 +26,6 @@ pub struct HasFrom;
 /// - Only valid columns for the table can be selected
 /// - Column types are known at compile time
 /// - Invalid queries fail to compile
-#[cfg(feature = "alloc")]
 pub struct TypedSelect<T, Cols, From>
 where
     T: Table,
@@ -45,7 +41,6 @@ where
     _from: PhantomData<From>,
 }
 
-#[cfg(feature = "alloc")]
 impl<T: Table> TypedSelect<T, NoColumns, NoFrom> {
     /// Creates a new typed SELECT builder for the given table.
     #[must_use]
@@ -64,14 +59,12 @@ impl<T: Table> TypedSelect<T, NoColumns, NoFrom> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<T: Table> Default for TypedSelect<T, NoColumns, NoFrom> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<T: Table, From> TypedSelect<T, NoColumns, From> {
     /// Selects specific columns from the table.
     ///
@@ -110,7 +103,6 @@ impl<T: Table, From> TypedSelect<T, NoColumns, From> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<T: Table, Cols> TypedSelect<T, Cols, NoFrom> {
     /// Specifies the table to query from.
     ///
@@ -131,7 +123,6 @@ impl<T: Table, Cols> TypedSelect<T, Cols, NoFrom> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<T: Table, Cols> TypedSelect<T, Cols, HasFrom> {
     /// Adds a WHERE clause with a type-safe column expression.
     #[must_use]
@@ -170,7 +161,6 @@ impl<T: Table, Cols> TypedSelect<T, Cols, HasFrom> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<T: Table> TypedSelect<T, HasColumns, HasFrom> {
     /// Builds the query and returns (SQL, parameters).
     #[must_use]
@@ -235,12 +225,11 @@ impl<T: Table> TypedSelect<T, HasColumns, HasFrom> {
 ///
 /// This function takes a column type and creates an expression builder
 /// that references the column by its SQL name.
-#[cfg(feature = "alloc")]
 pub fn typed_col<C: Column>(_col: C) -> ExprBuilder {
     ExprBuilder::column(C::NAME)
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod tests {
     // Note: Tests require the derive macro to be available,
     // which creates a circular dependency. Integration tests

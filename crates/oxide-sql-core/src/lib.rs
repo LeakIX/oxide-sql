@@ -6,12 +6,6 @@
 //! - A hand-written recursive descent parser with Pratt expression parsing
 //! - A type-safe SQL builder using the typestate pattern
 //! - Protection against SQL injection through parameterized queries
-//! - `no_std` support for embedded and WebAssembly targets
-//!
-//! ## Features
-//!
-//! - `std` (default): Enables standard library support
-//! - `alloc`: Enables heap allocation without full std (for no_std with alloc)
 //!
 //! ## Type-Safe SQL Building
 //!
@@ -50,11 +44,6 @@
 //! // sql = "SELECT id FROM users WHERE name = ?"
 //! // params = vec![SqlValue::Text("'; DROP TABLE users; --")]
 //! ```
-
-#![cfg_attr(not(feature = "std"), no_std)]
-
-#[cfg(feature = "alloc")]
-extern crate alloc;
 
 pub mod ast;
 pub mod builder;

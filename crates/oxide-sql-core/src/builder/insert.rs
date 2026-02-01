@@ -1,9 +1,6 @@
 //! Type-safe INSERT statement builder using the typestate pattern.
 
-#[cfg(feature = "alloc")]
-use alloc::{format, string::String, vec, vec::Vec};
-
-use core::marker::PhantomData;
+use std::marker::PhantomData;
 
 use super::value::{SqlValue, ToSqlValue};
 
@@ -19,7 +16,6 @@ pub struct NoValues;
 pub struct HasValues;
 
 /// A type-safe INSERT statement builder.
-#[cfg(feature = "alloc")]
 pub struct Insert<Table, Values> {
     table: Option<String>,
     columns: Vec<String>,
@@ -27,7 +23,6 @@ pub struct Insert<Table, Values> {
     _state: PhantomData<(Table, Values)>,
 }
 
-#[cfg(feature = "alloc")]
 impl Insert<NoTable, NoValues> {
     /// Creates a new INSERT builder.
     #[must_use]
@@ -41,7 +36,6 @@ impl Insert<NoTable, NoValues> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl Default for Insert<NoTable, NoValues> {
     fn default() -> Self {
         Self::new()
@@ -49,7 +43,6 @@ impl Default for Insert<NoTable, NoValues> {
 }
 
 // Transition: NoTable -> HasTable
-#[cfg(feature = "alloc")]
 impl<Values> Insert<NoTable, Values> {
     /// Specifies the table to insert into.
     #[must_use]
@@ -64,7 +57,6 @@ impl<Values> Insert<NoTable, Values> {
 }
 
 // Methods available after specifying table
-#[cfg(feature = "alloc")]
 impl<Values> Insert<HasTable, Values> {
     /// Specifies the columns to insert into.
     #[must_use]
@@ -75,7 +67,6 @@ impl<Values> Insert<HasTable, Values> {
 }
 
 // Transition: NoValues -> HasValues
-#[cfg(feature = "alloc")]
 impl Insert<HasTable, NoValues> {
     /// Adds a row of values to insert.
     #[must_use]
@@ -106,7 +97,6 @@ impl Insert<HasTable, NoValues> {
 }
 
 // Methods available after adding values
-#[cfg(feature = "alloc")]
 impl Insert<HasTable, HasValues> {
     /// Adds another row of values.
     #[must_use]
@@ -162,7 +152,7 @@ impl Insert<HasTable, HasValues> {
     }
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

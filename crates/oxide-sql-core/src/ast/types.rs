@@ -1,8 +1,5 @@
 //! SQL data type definitions.
 
-#[cfg(feature = "alloc")]
-use alloc::string::String;
-
 /// SQL data types.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataType {
@@ -65,17 +62,13 @@ pub enum DataType {
     Boolean,
 
     // Custom type (for database-specific types).
-    #[cfg(feature = "alloc")]
     Custom(String),
 }
 
 impl DataType {
     /// Returns the SQL representation of the data type.
     #[must_use]
-    #[cfg(feature = "alloc")]
     pub fn to_sql(&self) -> String {
-        use alloc::format;
-
         match self {
             Self::Smallint => String::from("SMALLINT"),
             Self::Integer => String::from("INTEGER"),
@@ -122,7 +115,6 @@ impl DataType {
 
 /// A column definition for CREATE TABLE.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct ColumnDef {
     /// Column name.
     pub name: String,
@@ -140,7 +132,6 @@ pub struct ColumnDef {
     pub autoincrement: bool,
 }
 
-#[cfg(feature = "alloc")]
 impl ColumnDef {
     /// Creates a new column definition.
     #[must_use]

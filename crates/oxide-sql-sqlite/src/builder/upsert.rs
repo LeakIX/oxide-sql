@@ -1,9 +1,6 @@
 //! SQLite UPSERT (INSERT ... ON CONFLICT) builder.
 
-#[cfg(feature = "alloc")]
-use alloc::{format, string::String, vec, vec::Vec};
-
-use core::marker::PhantomData;
+use std::marker::PhantomData;
 
 use oxide_sql_core::builder::value::{SqlValue, ToSqlValue};
 
@@ -23,7 +20,6 @@ pub struct NoConflict;
 pub struct HasConflict;
 
 /// A type-safe UPSERT (INSERT ... ON CONFLICT) builder for SQLite.
-#[cfg(feature = "alloc")]
 pub struct UpsertBuilder<Table, Values, Conflict> {
     table: Option<String>,
     columns: Vec<String>,
@@ -34,7 +30,6 @@ pub struct UpsertBuilder<Table, Values, Conflict> {
     _state: PhantomData<(Table, Values, Conflict)>,
 }
 
-#[cfg(feature = "alloc")]
 impl UpsertBuilder<NoTable, NoValues, NoConflict> {
     /// Creates a new UPSERT builder.
     #[must_use]
@@ -51,7 +46,6 @@ impl UpsertBuilder<NoTable, NoValues, NoConflict> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl Default for UpsertBuilder<NoTable, NoValues, NoConflict> {
     fn default() -> Self {
         Self::new()
@@ -59,7 +53,6 @@ impl Default for UpsertBuilder<NoTable, NoValues, NoConflict> {
 }
 
 // Transition: NoTable -> HasTable
-#[cfg(feature = "alloc")]
 impl<Values, Conflict> UpsertBuilder<NoTable, Values, Conflict> {
     /// Specifies the table to insert into.
     #[must_use]
@@ -77,7 +70,6 @@ impl<Values, Conflict> UpsertBuilder<NoTable, Values, Conflict> {
 }
 
 // Methods available after specifying table
-#[cfg(feature = "alloc")]
 impl<Values, Conflict> UpsertBuilder<HasTable, Values, Conflict> {
     /// Specifies the columns to insert into.
     #[must_use]
@@ -88,7 +80,6 @@ impl<Values, Conflict> UpsertBuilder<HasTable, Values, Conflict> {
 }
 
 // Transition: NoValues -> HasValues
-#[cfg(feature = "alloc")]
 impl<Conflict> UpsertBuilder<HasTable, NoValues, Conflict> {
     /// Adds values to insert.
     #[must_use]
@@ -110,7 +101,6 @@ impl<Conflict> UpsertBuilder<HasTable, NoValues, Conflict> {
 }
 
 // Transition: NoConflict -> HasConflict
-#[cfg(feature = "alloc")]
 impl UpsertBuilder<HasTable, HasValues, NoConflict> {
     /// Specifies the conflict target columns.
     #[must_use]
@@ -128,7 +118,6 @@ impl UpsertBuilder<HasTable, HasValues, NoConflict> {
 }
 
 // Methods available after ON CONFLICT
-#[cfg(feature = "alloc")]
 impl UpsertBuilder<HasTable, HasValues, HasConflict> {
     /// Sets DO NOTHING action.
     #[must_use]
@@ -195,7 +184,7 @@ impl UpsertBuilder<HasTable, HasValues, HasConflict> {
     }
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

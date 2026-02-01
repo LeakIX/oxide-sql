@@ -1,9 +1,6 @@
 //! Type-safe UPDATE statement builder using the typestate pattern.
 
-#[cfg(feature = "alloc")]
-use alloc::{format, string::String, vec, vec::Vec};
-
-use core::marker::PhantomData;
+use std::marker::PhantomData;
 
 use super::expr::ExprBuilder;
 use super::value::{SqlValue, ToSqlValue};
@@ -20,14 +17,12 @@ pub struct NoSet;
 pub struct HasSet;
 
 /// An assignment in the SET clause.
-#[cfg(feature = "alloc")]
 struct Assignment {
     column: String,
     value: SqlValue,
 }
 
 /// A type-safe UPDATE statement builder.
-#[cfg(feature = "alloc")]
 pub struct Update<Table, Set> {
     table: Option<String>,
     assignments: Vec<Assignment>,
@@ -35,7 +30,6 @@ pub struct Update<Table, Set> {
     _state: PhantomData<(Table, Set)>,
 }
 
-#[cfg(feature = "alloc")]
 impl Update<NoTable, NoSet> {
     /// Creates a new UPDATE builder.
     #[must_use]
@@ -49,7 +43,6 @@ impl Update<NoTable, NoSet> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl Default for Update<NoTable, NoSet> {
     fn default() -> Self {
         Self::new()
@@ -57,7 +50,6 @@ impl Default for Update<NoTable, NoSet> {
 }
 
 // Transition: NoTable -> HasTable
-#[cfg(feature = "alloc")]
 impl<Set> Update<NoTable, Set> {
     /// Specifies the table to update.
     #[must_use]
@@ -72,7 +64,6 @@ impl<Set> Update<NoTable, Set> {
 }
 
 // Transition: NoSet -> HasSet (requires table)
-#[cfg(feature = "alloc")]
 impl Update<HasTable, NoSet> {
     /// Adds a SET assignment.
     #[must_use]
@@ -90,7 +81,6 @@ impl Update<HasTable, NoSet> {
 }
 
 // Methods available after SET
-#[cfg(feature = "alloc")]
 impl Update<HasTable, HasSet> {
     /// Adds another SET assignment.
     #[must_use]
@@ -149,7 +139,7 @@ impl Update<HasTable, HasSet> {
     }
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::builder::col;

@@ -1,8 +1,5 @@
 //! SQL Parser implementation.
 
-#[cfg(feature = "alloc")]
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
-
 use super::error::ParseError;
 use super::pratt::{
     infix_binding_power, prefix_binding_power, token_to_binary_op, token_to_unary_op,
@@ -15,7 +12,6 @@ use crate::ast::{
 use crate::lexer::{Keyword, Lexer, Span, Token, TokenKind};
 
 /// SQL Parser.
-#[cfg(feature = "alloc")]
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
     current: Token,
@@ -24,7 +20,6 @@ pub struct Parser<'a> {
     param_counter: usize,
 }
 
-#[cfg(feature = "alloc")]
 impl<'a> Parser<'a> {
     /// Creates a new parser for the given input.
     #[must_use]
@@ -1108,7 +1103,7 @@ impl<'a> Parser<'a> {
             Ok(())
         } else {
             Err(ParseError::unexpected(
-                alloc::format!("{kind:?}"),
+                format!("{kind:?}"),
                 self.current.kind.clone(),
                 self.current.span,
             ))
@@ -1146,7 +1141,7 @@ impl<'a> Parser<'a> {
     }
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::ast::BinaryOp;

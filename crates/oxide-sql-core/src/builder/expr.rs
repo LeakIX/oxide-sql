@@ -1,13 +1,9 @@
 //! Type-safe expression builder.
 
-#[cfg(feature = "alloc")]
-use alloc::{format, string::String, vec, vec::Vec};
-
 use super::value::{SqlValue, ToSqlValue};
 
 /// Creates a column reference.
 #[must_use]
-#[cfg(feature = "alloc")]
 pub fn col(name: &str) -> Column {
     Column {
         table: None,
@@ -17,7 +13,6 @@ pub fn col(name: &str) -> Column {
 
 /// A column reference.
 #[derive(Debug, Clone)]
-#[cfg(feature = "alloc")]
 pub struct Column {
     /// Optional table qualifier.
     pub table: Option<String>,
@@ -25,7 +20,6 @@ pub struct Column {
     pub name: String,
 }
 
-#[cfg(feature = "alloc")]
 impl Column {
     /// Creates a qualified column reference.
     #[must_use]
@@ -134,13 +128,11 @@ impl Column {
 
 /// A type-safe expression builder.
 #[derive(Debug, Clone)]
-#[cfg(feature = "alloc")]
 pub struct ExprBuilder {
     sql: String,
     params: Vec<SqlValue>,
 }
 
-#[cfg(feature = "alloc")]
 impl ExprBuilder {
     /// Creates a new expression from raw SQL.
     ///
@@ -265,7 +257,6 @@ impl ExprBuilder {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl From<Column> for ExprBuilder {
     fn from(col: Column) -> Self {
         Self {
@@ -275,7 +266,6 @@ impl From<Column> for ExprBuilder {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl From<SqlValue> for ExprBuilder {
     fn from(value: SqlValue) -> Self {
         Self {
@@ -285,7 +275,7 @@ impl From<SqlValue> for ExprBuilder {
     }
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

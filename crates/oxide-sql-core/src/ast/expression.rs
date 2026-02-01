@@ -1,8 +1,5 @@
 //! Expression AST types.
 
-#[cfg(feature = "alloc")]
-use alloc::{boxed::Box, string::String, vec::Vec};
-
 use crate::lexer::Span;
 
 /// A literal value.
@@ -13,10 +10,8 @@ pub enum Literal {
     /// Float literal.
     Float(f64),
     /// String literal.
-    #[cfg(feature = "alloc")]
     String(String),
     /// Blob literal.
-    #[cfg(feature = "alloc")]
     Blob(Vec<u8>),
     /// Boolean literal.
     Boolean(bool),
@@ -126,7 +121,6 @@ impl UnaryOp {
 
 /// A function call expression.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct FunctionCall {
     /// The function name.
     pub name: String,
@@ -138,7 +132,6 @@ pub struct FunctionCall {
 
 /// An SQL expression.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub enum Expr {
     /// A literal value.
     Literal(Literal),
@@ -243,7 +236,6 @@ pub enum Expr {
     },
 }
 
-#[cfg(feature = "alloc")]
 impl Expr {
     /// Creates a new column reference.
     #[must_use]

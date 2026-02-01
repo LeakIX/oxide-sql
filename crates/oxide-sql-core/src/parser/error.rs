@@ -1,13 +1,9 @@
 //! Parser error types.
 
-#[cfg(feature = "alloc")]
-use alloc::string::String;
-
 use crate::lexer::{Span, TokenKind};
 
 /// A parse error.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct ParseError {
     /// The error message.
     pub message: String,
@@ -19,7 +15,6 @@ pub struct ParseError {
     pub found: Option<TokenKind>,
 }
 
-#[cfg(feature = "alloc")]
 impl ParseError {
     /// Creates a new parse error.
     #[must_use]
@@ -37,10 +32,9 @@ impl ParseError {
     pub fn unexpected(expected: impl Into<String>, found: TokenKind, span: Span) -> Self {
         let expected_str: String = expected.into();
         Self {
-            message: alloc::format!(
+            message: format!(
                 "Unexpected token: expected {}, found {:?}",
-                expected_str,
-                found
+                expected_str, found
             ),
             span,
             expected: Some(expected_str),
@@ -53,7 +47,7 @@ impl ParseError {
     pub fn unexpected_eof(expected: impl Into<String>, span: Span) -> Self {
         let expected_str: String = expected.into();
         Self {
-            message: alloc::format!("Unexpected end of input: expected {}", expected_str),
+            message: format!("Unexpected end of input: expected {}", expected_str),
             span,
             expected: Some(expected_str),
             found: Some(TokenKind::Eof),
@@ -61,9 +55,8 @@ impl ParseError {
     }
 }
 
-#[cfg(feature = "alloc")]
-impl core::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{} at position {}..{}",
@@ -72,5 +65,4 @@ impl core::fmt::Display for ParseError {
     }
 }
 
-#[cfg(feature = "std")]
 impl std::error::Error for ParseError {}

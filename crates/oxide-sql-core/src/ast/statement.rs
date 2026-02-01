@@ -1,8 +1,5 @@
 //! SQL statement AST types.
 
-#[cfg(feature = "alloc")]
-use alloc::{boxed::Box, string::String, vec::Vec};
-
 use super::expression::Expr;
 
 /// Order direction for ORDER BY.
@@ -48,7 +45,6 @@ impl NullOrdering {
 
 /// An ORDER BY clause entry.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct OrderBy {
     /// The expression to order by.
     pub expr: Expr,
@@ -89,7 +85,6 @@ impl JoinType {
 
 /// A JOIN clause.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct JoinClause {
     /// The type of join.
     pub join_type: JoinType,
@@ -103,7 +98,6 @@ pub struct JoinClause {
 
 /// A table reference in FROM clause.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub enum TableRef {
     /// A simple table name.
     Table {
@@ -130,7 +124,6 @@ pub enum TableRef {
     },
 }
 
-#[cfg(feature = "alloc")]
 impl TableRef {
     /// Creates a simple table reference.
     #[must_use]
@@ -175,7 +168,6 @@ impl TableRef {
 
 /// A SELECT statement.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct SelectStatement {
     /// Whether to select DISTINCT values.
     pub distinct: bool,
@@ -199,7 +191,6 @@ pub struct SelectStatement {
 
 /// A column in SELECT clause.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct SelectColumn {
     /// The expression.
     pub expr: Expr,
@@ -207,7 +198,6 @@ pub struct SelectColumn {
     pub alias: Option<String>,
 }
 
-#[cfg(feature = "alloc")]
 impl SelectColumn {
     /// Creates a new select column.
     #[must_use]
@@ -227,7 +217,6 @@ impl SelectColumn {
 
 /// An INSERT statement.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct InsertStatement {
     /// Schema name.
     pub schema: Option<String>,
@@ -243,7 +232,6 @@ pub struct InsertStatement {
 
 /// Source of data for INSERT.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub enum InsertSource {
     /// VALUES (...), (...), ...
     Values(Vec<Vec<Expr>>),
@@ -255,7 +243,6 @@ pub enum InsertSource {
 
 /// ON CONFLICT clause for UPSERT.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct OnConflict {
     /// Conflict target columns.
     pub columns: Vec<String>,
@@ -265,7 +252,6 @@ pub struct OnConflict {
 
 /// Action to take on conflict.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub enum ConflictAction {
     /// DO NOTHING
     DoNothing,
@@ -275,7 +261,6 @@ pub enum ConflictAction {
 
 /// An UPDATE statement.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct UpdateStatement {
     /// Schema name.
     pub schema: Option<String>,
@@ -293,7 +278,6 @@ pub struct UpdateStatement {
 
 /// An assignment in UPDATE SET.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct UpdateAssignment {
     /// Column name.
     pub column: String,
@@ -303,7 +287,6 @@ pub struct UpdateAssignment {
 
 /// A DELETE statement.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub struct DeleteStatement {
     /// Schema name.
     pub schema: Option<String>,
@@ -317,7 +300,6 @@ pub struct DeleteStatement {
 
 /// A SQL statement.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub enum Statement {
     /// SELECT statement.
     Select(SelectStatement),

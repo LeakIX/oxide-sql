@@ -49,19 +49,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets
 
-  no-std:
-    name: Build (no_std)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: thumbv7em-none-eabi
-      - uses: Swatinem/rust-cache@v2
-      - run: |
-          cargo build -p oxide-sql-core --no-default-features \
-            --target thumbv7em-none-eabi
-
   wasm:
     name: Build (WebAssembly)
     runs-on: ubuntu-latest

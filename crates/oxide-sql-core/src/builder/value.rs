@@ -2,14 +2,10 @@
 //!
 //! This module provides safe handling of SQL values to prevent SQL injection.
 
-#[cfg(feature = "alloc")]
-use alloc::{string::String, vec::Vec};
-
 /// A SQL value that can be used as a parameter.
 ///
 /// All values are properly escaped or parameterized to prevent SQL injection.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "alloc")]
 pub enum SqlValue {
     /// NULL value.
     Null,
@@ -25,7 +21,6 @@ pub enum SqlValue {
     Blob(Vec<u8>),
 }
 
-#[cfg(feature = "alloc")]
 impl SqlValue {
     /// Returns the SQL representation for inline use (escaped).
     ///
@@ -41,16 +36,16 @@ impl SqlValue {
                     String::from("FALSE")
                 }
             }
-            Self::Int(n) => alloc::format!("{n}"),
-            Self::Float(f) => alloc::format!("{f}"),
+            Self::Int(n) => format!("{n}"),
+            Self::Float(f) => format!("{f}"),
             Self::Text(s) => {
                 // Escape single quotes by doubling them
                 let escaped = s.replace('\'', "''");
-                alloc::format!("'{escaped}'")
+                format!("'{escaped}'")
             }
             Self::Blob(b) => {
-                let hex: String = b.iter().map(|byte| alloc::format!("{byte:02X}")).collect();
-                alloc::format!("X'{hex}'")
+                let hex: String = b.iter().map(|byte| format!("{byte:02X}")).collect();
+                format!("X'{hex}'")
             }
         }
     }
@@ -68,98 +63,84 @@ pub trait ToSqlValue {
     fn to_sql_value(self) -> SqlValue;
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for SqlValue {
     fn to_sql_value(self) -> SqlValue {
         self
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for bool {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Bool(self)
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for i64 {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Int(self)
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for i32 {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Int(i64::from(self))
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for i16 {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Int(i64::from(self))
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for i8 {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Int(i64::from(self))
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for u32 {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Int(i64::from(self))
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for u16 {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Int(i64::from(self))
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for u8 {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Int(i64::from(self))
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for f64 {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Float(self)
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for f32 {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Float(f64::from(self))
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for String {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Text(self)
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for &str {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Text(String::from(self))
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<T: ToSqlValue> ToSqlValue for Option<T> {
     fn to_sql_value(self) -> SqlValue {
         match self {
@@ -169,21 +150,19 @@ impl<T: ToSqlValue> ToSqlValue for Option<T> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for Vec<u8> {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Blob(self)
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToSqlValue for &[u8] {
     fn to_sql_value(self) -> SqlValue {
         SqlValue::Blob(self.to_vec())
     }
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

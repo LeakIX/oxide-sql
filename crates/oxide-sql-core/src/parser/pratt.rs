@@ -20,11 +20,11 @@ pub const fn prefix_binding_power(kind: &TokenKind) -> Option<u8> {
         | TokenKind::Float(_)
         | TokenKind::LeftParen
         | TokenKind::Question
-        | TokenKind::Colon => Some(0),
-        #[cfg(feature = "alloc")]
-        TokenKind::String(_) | TokenKind::Blob(_) | TokenKind::Identifier(_) | TokenKind::Star => {
-            Some(0)
-        }
+        | TokenKind::Colon
+        | TokenKind::String(_)
+        | TokenKind::Blob(_)
+        | TokenKind::Identifier(_)
+        | TokenKind::Star => Some(0),
         // Keywords that can start expressions
         TokenKind::Keyword(
             Keyword::Null

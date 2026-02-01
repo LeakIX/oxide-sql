@@ -1,9 +1,6 @@
 //! Type-safe DELETE statement builder using the typestate pattern.
 
-#[cfg(feature = "alloc")]
-use alloc::{string::String, vec, vec::Vec};
-
-use core::marker::PhantomData;
+use std::marker::PhantomData;
 
 use super::expr::ExprBuilder;
 use super::value::SqlValue;
@@ -20,14 +17,12 @@ pub struct HasTable;
 /// Uses the typestate pattern to ensure that:
 /// - `build()` is only available when table is specified
 /// - `where_clause()` is only available after table is specified
-#[cfg(feature = "alloc")]
 pub struct Delete<Table> {
     table: Option<String>,
     where_clause: Option<ExprBuilder>,
     _state: PhantomData<Table>,
 }
 
-#[cfg(feature = "alloc")]
 impl Delete<NoTable> {
     /// Creates a new DELETE builder.
     #[must_use]
@@ -40,7 +35,6 @@ impl Delete<NoTable> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl Default for Delete<NoTable> {
     fn default() -> Self {
         Self::new()
@@ -48,7 +42,6 @@ impl Default for Delete<NoTable> {
 }
 
 // Transition: NoTable -> HasTable
-#[cfg(feature = "alloc")]
 impl Delete<NoTable> {
     /// Specifies the table to delete from.
     #[must_use]
@@ -62,7 +55,6 @@ impl Delete<NoTable> {
 }
 
 // Methods available after FROM
-#[cfg(feature = "alloc")]
 impl Delete<HasTable> {
     /// Adds a WHERE clause.
     ///
@@ -112,12 +104,10 @@ impl Delete<HasTable> {
 /// A safe DELETE builder that requires a WHERE clause.
 ///
 /// This prevents accidental deletion of all rows.
-#[cfg(feature = "alloc")]
 pub struct SafeDelete<Table> {
     inner: Delete<Table>,
 }
 
-#[cfg(feature = "alloc")]
 impl SafeDelete<NoTable> {
     /// Creates a new safe DELETE builder.
     #[must_use]
@@ -136,7 +126,6 @@ impl SafeDelete<NoTable> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl Default for SafeDelete<NoTable> {
     fn default() -> Self {
         Self::new()
@@ -144,12 +133,10 @@ impl Default for SafeDelete<NoTable> {
 }
 
 // Safe DELETE requires WHERE before build
-#[cfg(feature = "alloc")]
 pub struct SafeDeleteWithWhere {
     inner: Delete<HasTable>,
 }
 
-#[cfg(feature = "alloc")]
 impl SafeDelete<HasTable> {
     /// Adds a WHERE clause (required for SafeDelete).
     #[must_use]
@@ -160,7 +147,6 @@ impl SafeDelete<HasTable> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl SafeDeleteWithWhere {
     /// Builds the DELETE statement.
     #[must_use]
@@ -175,7 +161,7 @@ impl SafeDeleteWithWhere {
     }
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::builder::col;

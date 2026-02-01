@@ -7,9 +7,4 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[features]
-default = ["std"]
-std = ["alloc"]
-alloc = []
-
 [dependencies]

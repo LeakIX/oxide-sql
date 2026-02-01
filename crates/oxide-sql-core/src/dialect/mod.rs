@@ -43,9 +43,8 @@ pub trait Dialect {
     }
 
     /// Quotes an identifier if necessary.
-    #[cfg(feature = "alloc")]
-    fn quote_identifier(&self, name: &str) -> alloc::string::String {
+    fn quote_identifier(&self, name: &str) -> String {
         let quote = self.identifier_quote();
-        alloc::format!("{quote}{name}{quote}")
+        format!("{quote}{name}{quote}")
     }
 }

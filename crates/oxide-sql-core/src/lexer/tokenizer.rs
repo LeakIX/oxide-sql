@@ -1,8 +1,5 @@
 //! SQL Tokenizer implementation.
 
-#[cfg(feature = "alloc")]
-use alloc::{string::String, vec::Vec};
-
 use super::{Keyword, Span, Token, TokenKind};
 
 /// A lexer that tokenizes SQL input.
@@ -95,7 +92,6 @@ impl<'a> Lexer<'a> {
     }
 
     /// Scans an identifier or keyword.
-    #[cfg(feature = "alloc")]
     fn scan_identifier(&mut self) -> Token {
         while self.peek().is_some_and(|c| c.is_alphanumeric() || c == '_') {
             self.advance();
@@ -112,7 +108,6 @@ impl<'a> Lexer<'a> {
     }
 
     /// Scans a quoted identifier (e.g., "column name" or `column name`).
-    #[cfg(feature = "alloc")]
     fn scan_quoted_identifier(&mut self, quote: char) -> Token {
         self.advance(); // consume opening quote
         let content_start = self.pos;
@@ -181,24 +176,17 @@ impl<'a> Lexer<'a> {
         if is_float {
             match text.parse::<f64>() {
                 Ok(f) => self.make_token(TokenKind::Float(f)),
-                #[cfg(feature = "alloc")]
-                Err(e) => self.make_token(TokenKind::Error(alloc::format!("Invalid float: {e}"))),
-                #[cfg(not(feature = "alloc"))]
-                Err(_) => self.make_token(TokenKind::Eof), // Fallback without alloc
+                Err(e) => self.make_token(TokenKind::Error(format!("Invalid float: {e}"))),
             }
         } else {
             match text.parse::<i64>() {
                 Ok(i) => self.make_token(TokenKind::Integer(i)),
-                #[cfg(feature = "alloc")]
-                Err(e) => self.make_token(TokenKind::Error(alloc::format!("Invalid integer: {e}"))),
-                #[cfg(not(feature = "alloc"))]
-                Err(_) => self.make_token(TokenKind::Eof),
+                Err(e) => self.make_token(TokenKind::Error(format!("Invalid integer: {e}"))),
             }
         }
     }
 
     /// Scans a string literal.
-    #[cfg(feature = "alloc")]
     fn scan_string(&mut self, quote: char) -> Token {
         self.advance(); // consume opening quote
         let mut value = String::new();
@@ -232,7 +220,6 @@ impl<'a> Lexer<'a> {
     }
 
     /// Scans a blob literal (X'...' or x'...').
-    #[cfg(feature = "alloc")]
     fn scan_blob(&mut self) -> Token {
         self.advance(); // consume X/x
         if self.peek() != Some('\'') {
@@ -284,7 +271,6 @@ impl<'a> Lexer<'a> {
 
     /// Scans the next token.
     #[must_use]
-    #[cfg(feature = "alloc")]
     pub fn next_token(&mut self) -> Token {
         self.skip_whitespace_and_comments();
         self.start = self.pos;
@@ -399,15 +385,12 @@ impl<'a> Lexer<'a> {
                 self.scan_identifier()
             }
 
-            _ => self.make_token(TokenKind::Error(alloc::format!(
-                "Unexpected character: {c}"
-            ))),
+            _ => self.make_token(TokenKind::Error(format!("Unexpected character: {c}"))),
         }
     }
 
     /// Tokenizes the entire input and returns all tokens.
     #[must_use]
-    #[cfg(feature = "alloc")]
     pub fn tokenize(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
         loop {
@@ -422,7 +405,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

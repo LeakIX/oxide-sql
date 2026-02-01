@@ -2,10 +2,7 @@
 //!
 //! Invalid SQL constructs are caught at compile time.
 
-#[cfg(feature = "alloc")]
-use alloc::{format, string::String, vec, vec::Vec};
-
-use core::marker::PhantomData;
+use std::marker::PhantomData;
 
 use super::expr::ExprBuilder;
 use super::value::SqlValue;
@@ -27,7 +24,6 @@ pub struct HasFrom;
 /// - `build()` is only available when both columns and FROM are specified
 /// - `where_clause()` is only available after FROM is specified
 /// - `group_by()`, `having()`, `order_by()` follow SQL semantics
-#[cfg(feature = "alloc")]
 pub struct Select<Cols, From> {
     distinct: bool,
     columns: Vec<String>,
@@ -42,7 +38,6 @@ pub struct Select<Cols, From> {
     _state: PhantomData<(Cols, From)>,
 }
 
-#[cfg(feature = "alloc")]
 impl Select<NoColumns, NoFrom> {
     /// Creates a new SELECT builder.
     #[must_use]
@@ -63,7 +58,6 @@ impl Select<NoColumns, NoFrom> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl Default for Select<NoColumns, NoFrom> {
     fn default() -> Self {
         Self::new()
@@ -71,7 +65,6 @@ impl Default for Select<NoColumns, NoFrom> {
 }
 
 // Transition: NoColumns -> HasColumns
-#[cfg(feature = "alloc")]
 impl<From> Select<NoColumns, From> {
     /// Specifies the columns to select.
     #[must_use]
@@ -111,7 +104,6 @@ impl<From> Select<NoColumns, From> {
 }
 
 // Transition: NoFrom -> HasFrom
-#[cfg(feature = "alloc")]
 impl<Cols> Select<Cols, NoFrom> {
     /// Specifies the table to select from.
     #[must_use]
@@ -133,7 +125,6 @@ impl<Cols> Select<Cols, NoFrom> {
 }
 
 // Methods available after FROM
-#[cfg(feature = "alloc")]
 impl<Cols> Select<Cols, HasFrom> {
     /// Adds a WHERE clause.
     #[must_use]
@@ -172,7 +163,6 @@ impl<Cols> Select<Cols, HasFrom> {
 }
 
 // Methods available with columns
-#[cfg(feature = "alloc")]
 impl<From> Select<HasColumns, From> {
     /// Sets DISTINCT.
     #[must_use]
@@ -183,7 +173,6 @@ impl<From> Select<HasColumns, From> {
 }
 
 // Methods available with FROM (for grouping)
-#[cfg(feature = "alloc")]
 impl Select<HasColumns, HasFrom> {
     /// Adds a GROUP BY clause.
     #[must_use]
@@ -293,7 +282,7 @@ impl Select<HasColumns, HasFrom> {
     }
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::builder::col;
