@@ -115,14 +115,14 @@ impl Column {
     #[must_use]
     pub fn in_list<T: ToSqlValue>(self, values: Vec<T>) -> ExprBuilder {
         let sql_values: Vec<SqlValue> = values.into_iter().map(ToSqlValue::to_sql_value).collect();
-        ExprBuilder::in_list(self.into(), sql_values, false)
+        ExprBuilder::in_list_impl(self.into(), sql_values, false)
     }
 
     /// Creates a NOT IN expression.
     #[must_use]
     pub fn not_in_list<T: ToSqlValue>(self, values: Vec<T>) -> ExprBuilder {
         let sql_values: Vec<SqlValue> = values.into_iter().map(ToSqlValue::to_sql_value).collect();
-        ExprBuilder::in_list(self.into(), sql_values, true)
+        ExprBuilder::in_list_impl(self.into(), sql_values, true)
     }
 }
 
@@ -195,8 +195,8 @@ impl ExprBuilder {
         }
     }
 
-    /// Creates an IN expression.
-    fn in_list(expr: Self, values: Vec<SqlValue>, negated: bool) -> Self {
+    /// Creates an IN expression (internal).
+    fn in_list_impl(expr: Self, values: Vec<SqlValue>, negated: bool) -> Self {
         let keyword = if negated { "NOT IN" } else { "IN" };
         let placeholders: Vec<&str> = values.iter().map(|_| "?").collect();
         let mut params = expr.params;
@@ -236,6 +236,74 @@ impl ExprBuilder {
             sql: format!("NOT {}", self.sql),
             params: self.params,
         }
+    }
+
+    /// Creates an equality expression.
+    #[must_use]
+    pub fn eq<T: ToSqlValue>(self, value: T) -> Self {
+        Self::binary(self, "=", value.to_sql_value().into())
+    }
+
+    /// Creates an inequality expression.
+    #[must_use]
+    pub fn not_eq<T: ToSqlValue>(self, value: T) -> Self {
+        Self::binary(self, "!=", value.to_sql_value().into())
+    }
+
+    /// Creates a less-than expression.
+    #[must_use]
+    pub fn lt<T: ToSqlValue>(self, value: T) -> Self {
+        Self::binary(self, "<", value.to_sql_value().into())
+    }
+
+    /// Creates a less-than-or-equal expression.
+    #[must_use]
+    pub fn lt_eq<T: ToSqlValue>(self, value: T) -> Self {
+        Self::binary(self, "<=", value.to_sql_value().into())
+    }
+
+    /// Creates a greater-than expression.
+    #[must_use]
+    pub fn gt<T: ToSqlValue>(self, value: T) -> Self {
+        Self::binary(self, ">", value.to_sql_value().into())
+    }
+
+    /// Creates a greater-than-or-equal expression.
+    #[must_use]
+    pub fn gt_eq<T: ToSqlValue>(self, value: T) -> Self {
+        Self::binary(self, ">=", value.to_sql_value().into())
+    }
+
+    /// Creates an IS NULL expression.
+    #[must_use]
+    pub fn is_null(self) -> Self {
+        Self::postfix(self, "IS NULL")
+    }
+
+    /// Creates an IS NOT NULL expression.
+    #[must_use]
+    pub fn is_not_null(self) -> Self {
+        Self::postfix(self, "IS NOT NULL")
+    }
+
+    /// Creates a LIKE expression.
+    #[must_use]
+    pub fn like<T: ToSqlValue>(self, pattern: T) -> Self {
+        Self::binary(self, "LIKE", pattern.to_sql_value().into())
+    }
+
+    /// Creates an IN expression.
+    #[must_use]
+    pub fn in_list<T: ToSqlValue>(self, values: Vec<T>) -> Self {
+        let sql_values: Vec<SqlValue> = values.into_iter().map(ToSqlValue::to_sql_value).collect();
+        Self::in_list_impl(self, sql_values, false)
+    }
+
+    /// Creates a NOT IN expression.
+    #[must_use]
+    pub fn not_in_list<T: ToSqlValue>(self, values: Vec<T>) -> Self {
+        let sql_values: Vec<SqlValue> = values.into_iter().map(ToSqlValue::to_sql_value).collect();
+        Self::in_list_impl(self, sql_values, true)
     }
 
     /// Returns the SQL string.

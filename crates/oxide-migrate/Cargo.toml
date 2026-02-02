@@ -1,0 +1,30 @@
+[package]
+name = "oxide-migrate"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Django-like database migrations for Rust"
+
+[dependencies]
+oxide-sql-core.workspace = true
+oxide-sql-sqlite.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = "0.3"
+anyhow = "1.0"
+
+[dev-dependencies]
+tempfile = "3.15"
+tokio-test = "0.4"
+
+[[bin]]
+name = "oxide-migrate"
+path = "src/main.rs"

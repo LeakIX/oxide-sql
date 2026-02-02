@@ -154,6 +154,7 @@ fn derive_table_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
 
     let expanded = quote! {
         /// Column types for `#struct_name` table.
+        #[allow(non_snake_case)]
         pub mod #columns_mod_name {
             #(#column_structs)*
         }

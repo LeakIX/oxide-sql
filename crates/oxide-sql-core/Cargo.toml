@@ -8,3 +8,6 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+
+[dev-dependencies]
+oxide-sql-derive.workspace = true
