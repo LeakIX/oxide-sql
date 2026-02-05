@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use sqlx::sqlite::SqlitePoolOptions;
-use tracing::{Level, info};
+use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use oxide_migrate::dialect::SqliteDialect;
@@ -170,10 +170,10 @@ async fn main() -> anyhow::Result<()> {
                 println!("{:-<60}", "");
 
                 for migration in &applied {
-                    if let Some(target_app) = &app
-                        && &migration.app != target_app
-                    {
-                        continue;
+                    if let Some(target_app) = &app {
+                        if &migration.app != target_app {
+                            continue;
+                        }
                     }
                     println!(
                         " [X] {}/{} ({})",

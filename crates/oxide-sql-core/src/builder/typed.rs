@@ -221,6 +221,293 @@ impl<T: Table> TypedSelect<T, HasColumns, HasFrom> {
     }
 }
 
+// ============================================================================
+// TypedInsert
+// ============================================================================
+
+/// Marker: No values specified yet.
+pub struct NoValues;
+/// Marker: Values have been specified.
+pub struct HasValues;
+
+/// A type-safe INSERT query builder that validates column names at compile time.
+///
+/// This builder ensures that:
+/// - Only valid columns for the table can be specified
+/// - The table name is derived from the type
+/// - Invalid column references fail to compile
+pub struct TypedInsert<T, Vals>
+where
+    T: Table,
+{
+    columns: Vec<&'static str>,
+    values: Vec<SqlValue>,
+    _table: PhantomData<T>,
+    _vals: PhantomData<Vals>,
+}
+
+impl<T: Table> TypedInsert<T, NoValues> {
+    /// Creates a new typed INSERT builder for the given table.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            columns: vec![],
+            values: vec![],
+            _table: PhantomData,
+            _vals: PhantomData,
+        }
+    }
+
+    /// Sets a column value using a type-safe column reference.
+    #[must_use]
+    pub fn set<C, V>(mut self, _col: C, value: V) -> TypedInsert<T, HasValues>
+    where
+        C: Column<Table = T>,
+        V: Into<SqlValue>,
+    {
+        self.columns.push(C::NAME);
+        self.values.push(value.into());
+        TypedInsert {
+            columns: self.columns,
+            values: self.values,
+            _table: PhantomData,
+            _vals: PhantomData,
+        }
+    }
+}
+
+impl<T: Table> Default for TypedInsert<T, NoValues> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: Table> TypedInsert<T, HasValues> {
+    /// Sets another column value using a type-safe column reference.
+    #[must_use]
+    pub fn set<C, V>(mut self, _col: C, value: V) -> Self
+    where
+        C: Column<Table = T>,
+        V: Into<SqlValue>,
+    {
+        self.columns.push(C::NAME);
+        self.values.push(value.into());
+        self
+    }
+
+    /// Builds the query and returns (SQL, parameters).
+    #[must_use]
+    pub fn build(self) -> (String, Vec<SqlValue>) {
+        let mut sql = String::from("INSERT INTO ");
+        sql.push_str(T::NAME);
+        sql.push_str(" (");
+        sql.push_str(&self.columns.join(", "));
+        sql.push_str(") VALUES (");
+        let placeholders: Vec<&str> = self.values.iter().map(|_| "?").collect();
+        sql.push_str(&placeholders.join(", "));
+        sql.push(')');
+        (sql, self.values)
+    }
+
+    /// Builds the query and returns only the SQL string.
+    #[must_use]
+    pub fn build_sql(self) -> String {
+        let (sql, _) = self.build();
+        sql
+    }
+}
+
+// ============================================================================
+// TypedUpdate
+// ============================================================================
+
+/// Marker: No SET clause specified yet.
+pub struct NoSet;
+/// Marker: SET clause has been specified.
+pub struct HasSet;
+
+/// A type-safe UPDATE query builder that validates column names at compile time.
+///
+/// This builder ensures that:
+/// - Only valid columns for the table can be updated
+/// - The table name is derived from the type
+/// - Invalid column references fail to compile
+pub struct TypedUpdate<T, Set>
+where
+    T: Table,
+{
+    sets: Vec<(&'static str, SqlValue)>,
+    where_clause: Option<ExprBuilder>,
+    _table: PhantomData<T>,
+    _set: PhantomData<Set>,
+}
+
+impl<T: Table> TypedUpdate<T, NoSet> {
+    /// Creates a new typed UPDATE builder for the given table.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            sets: vec![],
+            where_clause: None,
+            _table: PhantomData,
+            _set: PhantomData,
+        }
+    }
+
+    /// Sets a column to a value using a type-safe column reference.
+    #[must_use]
+    pub fn set<C, V>(mut self, _col: C, value: V) -> TypedUpdate<T, HasSet>
+    where
+        C: Column<Table = T>,
+        V: Into<SqlValue>,
+    {
+        self.sets.push((C::NAME, value.into()));
+        TypedUpdate {
+            sets: self.sets,
+            where_clause: self.where_clause,
+            _table: PhantomData,
+            _set: PhantomData,
+        }
+    }
+}
+
+impl<T: Table> Default for TypedUpdate<T, NoSet> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: Table> TypedUpdate<T, HasSet> {
+    /// Sets another column to a value using a type-safe column reference.
+    #[must_use]
+    pub fn set<C, V>(mut self, _col: C, value: V) -> Self
+    where
+        C: Column<Table = T>,
+        V: Into<SqlValue>,
+    {
+        self.sets.push((C::NAME, value.into()));
+        self
+    }
+
+    /// Adds a WHERE clause with a type-safe column expression.
+    #[must_use]
+    pub fn where_col<C: Column<Table = T>>(mut self, _col: C, expr: ExprBuilder) -> Self {
+        self.where_clause = Some(expr);
+        self
+    }
+
+    /// Adds a WHERE clause with a raw expression.
+    #[must_use]
+    pub fn where_clause(mut self, expr: ExprBuilder) -> Self {
+        self.where_clause = Some(expr);
+        self
+    }
+
+    /// Builds the query and returns (SQL, parameters).
+    #[must_use]
+    pub fn build(self) -> (String, Vec<SqlValue>) {
+        let mut sql = String::from("UPDATE ");
+        sql.push_str(T::NAME);
+        sql.push_str(" SET ");
+
+        let set_clauses: Vec<String> = self
+            .sets
+            .iter()
+            .map(|(col, _)| format!("{} = ?", col))
+            .collect();
+        sql.push_str(&set_clauses.join(", "));
+
+        if let Some(ref where_expr) = self.where_clause {
+            sql.push_str(" WHERE ");
+            sql.push_str(where_expr.sql());
+        }
+
+        let params: Vec<SqlValue> = self.sets.into_iter().map(|(_, v)| v).collect();
+        (sql, params)
+    }
+
+    /// Builds the query and returns only the SQL string.
+    #[must_use]
+    pub fn build_sql(self) -> String {
+        let (sql, _) = self.build();
+        sql
+    }
+}
+
+// ============================================================================
+// TypedDelete
+// ============================================================================
+
+/// A type-safe DELETE query builder that validates column names at compile time.
+///
+/// This builder ensures that:
+/// - Only valid columns for the table can be used in WHERE
+/// - The table name is derived from the type
+/// - Invalid column references fail to compile
+pub struct TypedDelete<T>
+where
+    T: Table,
+{
+    where_clause: Option<ExprBuilder>,
+    _table: PhantomData<T>,
+}
+
+impl<T: Table> TypedDelete<T> {
+    /// Creates a new typed DELETE builder for the given table.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            where_clause: None,
+            _table: PhantomData,
+        }
+    }
+
+    /// Adds a WHERE clause with a type-safe column expression.
+    #[must_use]
+    pub fn where_col<C: Column<Table = T>>(mut self, _col: C, expr: ExprBuilder) -> Self {
+        self.where_clause = Some(expr);
+        self
+    }
+
+    /// Adds a WHERE clause with a raw expression.
+    #[must_use]
+    pub fn where_clause(mut self, expr: ExprBuilder) -> Self {
+        self.where_clause = Some(expr);
+        self
+    }
+
+    /// Builds the query and returns (SQL, parameters).
+    #[must_use]
+    pub fn build(self) -> (String, Vec<SqlValue>) {
+        let mut sql = String::from("DELETE FROM ");
+        sql.push_str(T::NAME);
+
+        if let Some(ref where_expr) = self.where_clause {
+            sql.push_str(" WHERE ");
+            sql.push_str(where_expr.sql());
+        }
+
+        (sql, vec![])
+    }
+
+    /// Builds the query and returns only the SQL string.
+    #[must_use]
+    pub fn build_sql(self) -> String {
+        let (sql, _) = self.build();
+        sql
+    }
+}
+
+impl<T: Table> Default for TypedDelete<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 /// Creates a type-safe column expression for use in WHERE clauses.
 ///
 /// This function takes a column type and creates an expression builder

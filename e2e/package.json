@@ -1,0 +1,11 @@
+{
+  "name": "oxide-sql-e2e",
+  "version": "1.0.0",
+  "description": "E2E tests for oxide-sql admin interface",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -379,14 +379,12 @@ mod tests {
     impl Migration for Migration0001 {
         const ID: &'static str = "0001_initial";
         fn up() -> Vec<Operation> {
-            vec![
-                CreateTableBuilder::new()
-                    .name("users")
-                    .column(bigint("id").primary_key().autoincrement().build())
-                    .column(varchar("username", 255).not_null().build())
-                    .build()
-                    .into(),
-            ]
+            vec![CreateTableBuilder::new()
+                .name("users")
+                .column(bigint("id").primary_key().autoincrement().build())
+                .column(varchar("username", 255).not_null().build())
+                .build()
+                .into()]
         }
         fn down() -> Vec<Operation> {
             vec![Operation::drop_table("users")]

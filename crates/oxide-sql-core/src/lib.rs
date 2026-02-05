@@ -89,7 +89,7 @@ pub mod parser;
 pub mod schema;
 
 pub use ast::{Expr, Statement};
-pub use builder::{Delete, Insert, Select, Update, col};
+pub use builder::{col, Delete, Insert, Select, Update};
 pub use lexer::{Lexer, Token, TokenKind};
 pub use parser::{ParseError, Parser};
 pub use schema::{Column, Selectable, Table, TypedColumn};

@@ -410,12 +410,10 @@ mod tests {
 
         // Verify both applied
         assert!(executor.is_applied("users", "0001_initial").await.unwrap());
-        assert!(
-            executor
-                .is_applied("users", "0002_add_email")
-                .await
-                .unwrap()
-        );
+        assert!(executor
+            .is_applied("users", "0002_add_email")
+            .await
+            .unwrap());
     }
 
     #[tokio::test]

@@ -8,7 +8,7 @@
 //!
 //! Run with: cargo run --example invoicing
 
-use oxide_sql_core::builder::typed::{TypedSelect, typed_col};
+use oxide_sql_core::builder::typed::{typed_col, TypedSelect};
 use oxide_sql_derive::Table;
 
 // =============================================================================

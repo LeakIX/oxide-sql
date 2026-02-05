@@ -5,8 +5,8 @@
 //!
 //! Run with: cargo run --example blog_migrations -p oxide-migrate
 
-use oxide_migrate::OxideMigration;
 use oxide_migrate::prelude::*;
+use oxide_migrate::OxideMigration;
 
 // =============================================================================
 // Migration Definitions

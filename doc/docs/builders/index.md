@@ -14,6 +14,49 @@ uses the typestate pattern to ensure valid SQL at compile time.
 - [UPDATE](./update) - Modify existing rows
 - [DELETE](./delete) - Remove rows
 
+## Typed vs String-Based Builders
+
+Oxide SQL offers two levels of type safety:
+
+### String-Based Builders (This Section)
+
+Use column names as strings. Good for dynamic queries or quick prototyping:
+
+```rust
+Select::new().columns(&["id", "name"]).from("users").build();
+```
+
+### Typed Builders (Recommended)
+
+Use `#[derive(Table)]` for **compile-time column validation**. Invalid column
+names won't compile:
+
+```rust
+use oxide_sql_derive::Table;
+use oxide_sql_core::builder::{TypedSelect, TypedInsert, typed_col};
+
+#[derive(Table)]
+#[table(name = "users")]
+struct User {
+    #[column(primary_key)]
+    id: i32,
+    name: String,
+}
+
+// Columns are validated at compile time
+TypedSelect::<UserTable, _, _>::new()
+    .select::<(UserColumns::Id, UserColumns::Name)>()
+    .from_table()
+    .where_clause(typed_col(User::id()).eq(1))
+    .build();
+
+// This would NOT compile:
+// .select::<(UserColumns::InvalidColumn,)>()  // Error!
+```
+
+See [Schema > Typed Queries](../schema/queries) for full typed builder
+documentation.
+
 ## The Typestate Pattern
 
 All builders use Rust's type system to enforce SQL validity at compile time.

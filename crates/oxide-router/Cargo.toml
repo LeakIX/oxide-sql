@@ -1,0 +1,18 @@
+[package]
+name = "oxide-router"
+description = "URL routing with middleware support"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+futures.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

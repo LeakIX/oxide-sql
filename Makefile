@@ -119,3 +119,31 @@ doc-serve: ## Serve built documentation locally
 .PHONY: doc-clear
 doc-clear: ## Clear documentation cache
 	(cd doc && npx docusaurus clear)
+
+# E2E test targets
+
+.PHONY: e2e-install
+e2e-install: ## Install E2E test dependencies
+	cd e2e && npm install && npx playwright install
+
+.PHONY: e2e-test
+e2e-test: ## Run E2E tests
+	cd e2e && npx playwright test
+
+.PHONY: e2e-test-ui
+e2e-test-ui: ## Run E2E tests with UI
+	cd e2e && npx playwright test --ui
+
+.PHONY: e2e-test-headed
+e2e-test-headed: ## Run E2E tests in headed mode
+	cd e2e && npx playwright test --headed
+
+.PHONY: e2e-report
+e2e-report: ## Show E2E test report
+	cd e2e && npx playwright show-report
+
+# Example targets
+
+.PHONY: example-blog
+example-blog: ## Run blog admin example
+	cargo run --example blog_admin

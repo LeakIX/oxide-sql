@@ -1,0 +1,33 @@
+[package]
+name = "oxide-admin"
+description = "Django-like admin interface with Bootstrap 5 UI"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+oxide-sql-core.workspace = true
+oxide-orm.workspace = true
+oxide-auth.workspace = true
+oxide-forms.workspace = true
+oxide-router.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+hyper = { version = "1.5", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
+http-body-util = "0.1"
+tokio = { workspace = true, features = ["full"] }
+chrono.workspace = true
+rand.workspace = true
+oxide-sql-derive.workspace = true
+
+[[example]]
+name = "blog_admin"
+path = "examples/blog_admin.rs"

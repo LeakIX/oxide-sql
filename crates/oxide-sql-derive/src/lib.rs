@@ -6,7 +6,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{Attribute, Data, DeriveInput, Expr, Fields, Ident, Lit, Meta, Type, parse_macro_input};
+use syn::{parse_macro_input, Attribute, Data, DeriveInput, Expr, Fields, Ident, Lit, Meta, Type};
 
 /// Derives the `Table` trait for a struct, generating type-safe column accessors.
 ///
@@ -215,10 +215,10 @@ fn get_table_name(attrs: &[Attribute], struct_name: &Ident) -> syn::Result<Strin
             attr.parse_nested_meta(|meta| {
                 if meta.path.is_ident("name") {
                     let value: Expr = meta.value()?.parse()?;
-                    if let Expr::Lit(lit) = value
-                        && let Lit::Str(s) = lit.lit
-                    {
-                        table_name = Some(s.value());
+                    if let Expr::Lit(lit) = value {
+                        if let Lit::Str(s) = lit.lit {
+                            table_name = Some(s.value());
+                        }
                     }
                 }
                 Ok(())
@@ -253,10 +253,10 @@ fn parse_column_attrs(attrs: &[Attribute]) -> syn::Result<ColumnAttrs> {
                     result.nullable = true;
                 } else if meta.path.is_ident("name") {
                     let value: Expr = meta.value()?.parse()?;
-                    if let Expr::Lit(lit) = value
-                        && let Lit::Str(s) = lit.lit
-                    {
-                        result.name = Some(s.value());
+                    if let Expr::Lit(lit) = value {
+                        if let Lit::Str(s) = lit.lit {
+                            result.name = Some(s.value());
+                        }
                     }
                 }
                 Ok(())

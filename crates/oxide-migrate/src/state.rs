@@ -194,10 +194,10 @@ impl SchemaState {
                 // Try to find the index in any table if table is not specified
                 let mut found = false;
                 for t in &mut self.schema.tables {
-                    if let Some(table_name) = table
-                        && t.name != *table_name
-                    {
-                        continue;
+                    if let Some(table_name) = table {
+                        if t.name != *table_name {
+                            continue;
+                        }
                     }
                     if let Some(idx) = t.indexes.iter().position(|i| i.name == *name) {
                         t.indexes.remove(idx);

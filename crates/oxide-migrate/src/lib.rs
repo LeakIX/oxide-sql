@@ -93,7 +93,7 @@ pub mod prelude {
         IndexSchema, SqlType, TableSchema, UniqueConstraint,
     };
     pub use crate::state::SchemaState;
-    pub use crate::writer::{MigrationWriter, generate_migration_name};
+    pub use crate::writer::{generate_migration_name, MigrationWriter};
 }
 
 /// Trait for migrations defined in Rust code.

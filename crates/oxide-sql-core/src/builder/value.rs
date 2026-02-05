@@ -162,6 +162,95 @@ impl ToSqlValue for &[u8] {
     }
 }
 
+// From implementations for Into<SqlValue> support in typed builders
+
+impl From<bool> for SqlValue {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+
+impl From<i64> for SqlValue {
+    fn from(value: i64) -> Self {
+        Self::Int(value)
+    }
+}
+
+impl From<i32> for SqlValue {
+    fn from(value: i32) -> Self {
+        Self::Int(i64::from(value))
+    }
+}
+
+impl From<i16> for SqlValue {
+    fn from(value: i16) -> Self {
+        Self::Int(i64::from(value))
+    }
+}
+
+impl From<i8> for SqlValue {
+    fn from(value: i8) -> Self {
+        Self::Int(i64::from(value))
+    }
+}
+
+impl From<u32> for SqlValue {
+    fn from(value: u32) -> Self {
+        Self::Int(i64::from(value))
+    }
+}
+
+impl From<u16> for SqlValue {
+    fn from(value: u16) -> Self {
+        Self::Int(i64::from(value))
+    }
+}
+
+impl From<u8> for SqlValue {
+    fn from(value: u8) -> Self {
+        Self::Int(i64::from(value))
+    }
+}
+
+impl From<f64> for SqlValue {
+    fn from(value: f64) -> Self {
+        Self::Float(value)
+    }
+}
+
+impl From<f32> for SqlValue {
+    fn from(value: f32) -> Self {
+        Self::Float(f64::from(value))
+    }
+}
+
+impl From<String> for SqlValue {
+    fn from(value: String) -> Self {
+        Self::Text(value)
+    }
+}
+
+impl From<&str> for SqlValue {
+    fn from(value: &str) -> Self {
+        Self::Text(String::from(value))
+    }
+}
+
+impl<T: Into<SqlValue>> From<Option<T>> for SqlValue {
+    fn from(value: Option<T>) -> Self {
+        match value {
+            Some(v) => v.into(),
+            None => Self::Null,
+        }
+    }
+}
+
+impl From<Vec<u8>> for SqlValue {
+    fn from(value: Vec<u8>) -> Self {
+        Self::Blob(value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

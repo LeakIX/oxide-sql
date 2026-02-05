@@ -439,7 +439,7 @@ impl From<RawSqlOp> for Operation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migrations::column_builder::{ForeignKeyAction, bigint, varchar};
+    use crate::migrations::column_builder::{bigint, varchar, ForeignKeyAction};
 
     #[test]
     fn test_drop_table_operation() {
