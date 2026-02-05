@@ -36,13 +36,13 @@
 //! ## Using Field Helpers
 //!
 //! ```ignore
-//! use oxide_forms::fields::{CharField, EmailField, PasswordField, ChoiceField};
+//! use oxide_forms::fields::{char_field, email_field, password_field, choice_field};
 //!
 //! let fields = vec![
-//!     CharField("username", "Username", 150, true),
-//!     EmailField("email", "Email", true),
-//!     PasswordField("password", "Password", Some(8)),
-//!     ChoiceField("role", "Role", vec![
+//!     char_field("username", "Username", 150, true),
+//!     email_field("email", "Email", true),
+//!     password_field("password", "Password", Some(8)),
+//!     choice_field("role", "Role", vec![
 //!         ("user", "User"),
 //!         ("admin", "Administrator"),
 //!     ], true),

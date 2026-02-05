@@ -5,8 +5,7 @@ use crate::validation::RequiredValidator;
 use crate::widgets::BootstrapSelect;
 
 /// Creates a choice field (select/dropdown).
-#[allow(non_snake_case)]
-pub fn ChoiceField(
+pub fn choice_field(
     name: &str,
     label: &str,
     choices: Vec<(&str, &str)>,
@@ -29,8 +28,7 @@ pub fn ChoiceField(
 }
 
 /// Creates a multiple choice field (multi-select).
-#[allow(non_snake_case)]
-pub fn MultipleChoiceField(
+pub fn multiple_choice_field(
     name: &str,
     label: &str,
     choices: Vec<(&str, &str)>,
@@ -60,7 +58,7 @@ mod tests {
     #[test]
     fn test_choice_field() {
         let choices = vec![("draft", "Draft"), ("published", "Published")];
-        let field = ChoiceField("status", "Status", choices, true);
+        let field = choice_field("status", "Status", choices, true);
         assert_eq!(field.name, "status");
         assert!(field.required);
     }
@@ -68,7 +66,7 @@ mod tests {
     #[test]
     fn test_multiple_choice_field() {
         let choices = vec![("tag1", "Tag 1"), ("tag2", "Tag 2")];
-        let field = MultipleChoiceField("tags", "Tags", choices, false);
+        let field = multiple_choice_field("tags", "Tags", choices, false);
         assert_eq!(field.name, "tags");
         assert!(!field.required);
     }
