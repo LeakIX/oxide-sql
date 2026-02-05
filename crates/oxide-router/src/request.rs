@@ -23,7 +23,7 @@ pub enum Method {
 
 impl Method {
     /// Parses a method from a string.
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_uppercase().as_str() {
             "GET" => Some(Self::Get),
             "POST" => Some(Self::Post),
@@ -227,9 +227,9 @@ mod tests {
 
     #[test]
     fn test_method_parsing() {
-        assert_eq!(Method::from_str("GET"), Some(Method::Get));
-        assert_eq!(Method::from_str("post"), Some(Method::Post));
-        assert_eq!(Method::from_str("INVALID"), None);
+        assert_eq!(Method::parse("GET"), Some(Method::Get));
+        assert_eq!(Method::parse("post"), Some(Method::Post));
+        assert_eq!(Method::parse("INVALID"), None);
     }
 
     #[test]

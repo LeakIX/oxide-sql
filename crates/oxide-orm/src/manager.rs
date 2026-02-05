@@ -42,9 +42,7 @@ pub struct Manager<M: Model> {
 
 impl<M: Model> Clone for Manager<M> {
     fn clone(&self) -> Self {
-        Self {
-            _marker: PhantomData,
-        }
+        *self
     }
 }
 

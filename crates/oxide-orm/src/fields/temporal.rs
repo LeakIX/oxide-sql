@@ -71,16 +71,16 @@ impl Field for DateField {
         let month: u32 = parts[1].parse().map_err(|_| "Invalid month".to_string())?;
         let day: u32 = parts[2].parse().map_err(|_| "Invalid day".to_string())?;
 
-        if month < 1 || month > 12 {
+        if !(1..=12).contains(&month) {
             return Err("Month must be between 1 and 12".to_string());
         }
 
-        if day < 1 || day > 31 {
+        if !(1..=31).contains(&day) {
             return Err("Day must be between 1 and 31".to_string());
         }
 
         // Basic year range check
-        if year < 1 || year > 9999 {
+        if !(1..=9999).contains(&year) {
             return Err("Year must be between 1 and 9999".to_string());
         }
 

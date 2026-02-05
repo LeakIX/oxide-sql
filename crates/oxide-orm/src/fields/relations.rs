@@ -49,7 +49,7 @@ pub enum OnDelete {
 
 impl OnDelete {
     /// Returns the SQL representation.
-    pub fn to_sql(&self) -> &'static str {
+    pub fn to_sql(self) -> &'static str {
         match self {
             Self::Cascade => "CASCADE",
             Self::Protect => "RESTRICT",

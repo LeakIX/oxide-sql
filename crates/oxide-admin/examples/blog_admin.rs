@@ -1266,7 +1266,7 @@ async fn handle_request(
     use http_body_util::BodyExt;
 
     // Convert hyper request to oxide_router Request
-    let method = Method::from_str(req.method().as_str()).unwrap_or(Method::Get);
+    let method = Method::parse(req.method().as_str()).unwrap_or(Method::Get);
     let uri = req.uri();
     let path = uri.path().to_string();
 

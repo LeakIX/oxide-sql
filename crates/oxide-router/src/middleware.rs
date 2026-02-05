@@ -99,7 +99,7 @@ impl Middleware for AuthMiddleware {
             if req.get_header("Authorization").is_some()
                 || req
                     .get_header("Cookie")
-                    .map_or(false, |c| c.contains("session="))
+                    .is_some_and(|c| c.contains("session="))
             {
                 MiddlewareResult::Continue(req.clone())
             } else {

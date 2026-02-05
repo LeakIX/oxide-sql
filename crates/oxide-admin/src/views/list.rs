@@ -105,7 +105,7 @@ pub fn list_view(
     user_name: Option<String>,
 ) -> Response {
     let per_page = registration.admin.list_per_page;
-    let total_pages = (data.total_count + per_page - 1) / per_page;
+    let total_pages = data.total_count.div_ceil(per_page);
 
     let active_filters: Vec<(String, String)> = params
         .filters
