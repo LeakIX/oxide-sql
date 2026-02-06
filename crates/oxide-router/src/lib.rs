@@ -11,7 +11,7 @@
 //!
 //! ## Quick Start
 //!
-//! ```ignore
+//! ```
 //! use oxide_router::{Router, Request, Response};
 //!
 //! async fn hello_handler(_req: Request) -> Response {
@@ -20,41 +20,58 @@
 //!
 //! async fn user_handler(req: Request) -> Response {
 //!     let id = req.params.get("id").unwrap_or("unknown");
-//!     Response::json(&serde_json::json!({"id": id}))
+//!     Response::text(format!("User: {id}"))
 //! }
 //!
 //! let router = Router::new()
 //!     .get("/", hello_handler)
-//!     .get("/users/{id}", user_handler)
-//!     .post("/users", create_user_handler);
+//!     .get("/users/{id}", user_handler);
 //!
 //! // Handle a request
-//! let request = Request::get("/users/123");
-//! let response = router.handle(request).await;
+//! let rt = tokio::runtime::Runtime::new().unwrap();
+//! rt.block_on(async {
+//!     let request = Request::get("/users/123");
+//!     let response = router.handle(request).await;
+//!     assert_eq!(response.status, 200);
+//! });
 //! ```
 //!
 //! ## Path Parameters
 //!
 //! Routes can include path parameters using `{name}` syntax:
 //!
-//! ```ignore
-//! router.get("/posts/{post_id}/comments/{comment_id}", handler)
+//! ```
+//! use oxide_router::{Router, Request, Response};
+//!
+//! async fn handler(_req: Request) -> Response {
+//!     Response::ok()
+//! }
+//!
+//! let router = Router::new()
+//!     .get("/posts/{post_id}/comments/{comment_id}", handler);
 //! ```
 //!
 //! Parameters are available in `request.params`:
 //!
-//! ```ignore
+//! ```
+//! use oxide_router::{Request, Response};
+//!
 //! async fn handler(req: Request) -> Response {
-//!     let post_id = req.params.get("post_id").unwrap();
-//!     let comment_id = req.params.get("comment_id").unwrap();
-//!     // ...
+//!     let post_id = req.params.get("post_id").unwrap_or("none");
+//!     let comment_id = req.params.get("comment_id").unwrap_or("none");
+//!     Response::text(format!("{post_id}/{comment_id}"))
 //! }
 //! ```
 //!
 //! ## Middleware
 //!
-//! ```ignore
-//! use oxide_router::{Router, Middleware, LoggingMiddleware, AuthMiddleware};
+//! ```
+//! use oxide_router::{Router, LoggingMiddleware, AuthMiddleware,
+//!     Request, Response};
+//!
+//! async fn handler(_req: Request) -> Response {
+//!     Response::ok()
+//! }
 //!
 //! let router = Router::new()
 //!     .middleware(LoggingMiddleware)
@@ -64,8 +81,12 @@
 //!
 //! ## Route Groups
 //!
-//! ```ignore
-//! use oxide_router::{Router, RouteGroup};
+//! ```
+//! use oxide_router::{Router, RouteGroup, Request, Response};
+//!
+//! async fn list_users(_req: Request) -> Response { Response::ok() }
+//! async fn get_user(_req: Request) -> Response { Response::ok() }
+//! async fn create_user(_req: Request) -> Response { Response::ok() }
 //!
 //! let api = RouteGroup::new("/api/v1")
 //!     .get("/users", list_users)
@@ -78,12 +99,19 @@
 //!
 //! ## Named Routes
 //!
-//! ```ignore
+//! ```
+//! use std::collections::HashMap;
+//! use oxide_router::{Router, Method, Request, Response};
+//!
+//! async fn handler(_req: Request) -> Response { Response::ok() }
+//!
 //! let router = Router::new()
 //!     .named_route("user_detail", Method::Get, "/users/{id}", handler);
 //!
 //! // Generate URL
-//! let url = router.url_for("user_detail", &[("id", "123")].into());
+//! let params: HashMap<String, String> =
+//!     [("id".to_string(), "123".to_string())].into_iter().collect();
+//! let url = router.url_for("user_detail", &params);
 //! assert_eq!(url, Some("/users/123".to_string()));
 //! ```
 

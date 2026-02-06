@@ -26,18 +26,27 @@ pub enum MiddlewareResult {
 ///
 /// # Example
 ///
-/// ```ignore
-/// struct LoggingMiddleware;
+/// ```
+/// use oxide_router::{BoxFuture, Middleware, MiddlewareResult,
+///     Request, Response};
 ///
-/// impl Middleware for LoggingMiddleware {
-///     fn before<'a>(&'a self, req: &'a Request) -> BoxFuture<'a, MiddlewareResult> {
+/// struct MyMiddleware;
+///
+/// impl Middleware for MyMiddleware {
+///     fn before<'a>(
+///         &'a self,
+///         req: &'a Request,
+///     ) -> BoxFuture<'a, MiddlewareResult> {
 ///         Box::pin(async move {
 ///             println!("{} {}", req.method, req.path);
 ///             MiddlewareResult::Continue(req.clone())
 ///         })
 ///     }
 ///
-///     fn after<'a>(&'a self, res: Response) -> BoxFuture<'a, Response> {
+///     fn after<'a>(
+///         &'a self,
+///         res: Response,
+///     ) -> BoxFuture<'a, Response> {
 ///         Box::pin(async move {
 ///             println!("Response: {}", res.status);
 ///             res

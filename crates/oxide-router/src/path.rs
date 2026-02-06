@@ -39,7 +39,9 @@ impl PathPattern {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// use oxide_router::PathPattern;
+    ///
     /// let pattern = PathPattern::new("/posts/{id}/comments/{comment_id}");
     /// let params = pattern.match_path("/posts/123/comments/456").unwrap();
     /// assert_eq!(params.get("id"), Some("123"));
@@ -115,9 +117,16 @@ impl PathPattern {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// use std::collections::HashMap;
+    /// use oxide_router::PathPattern;
+    ///
     /// let pattern = PathPattern::new("/posts/{id}");
-    /// let path = pattern.reverse(&[("id", "123")].into()).unwrap();
+    /// let params: HashMap<String, String> =
+    ///     [("id".to_string(), "123".to_string())]
+    ///     .into_iter()
+    ///     .collect();
+    /// let path = pattern.reverse(&params).unwrap();
     /// assert_eq!(path, "/posts/123");
     /// ```
     pub fn reverse(&self, params: &HashMap<String, String>) -> Option<String> {
