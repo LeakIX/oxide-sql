@@ -1,4 +1,7 @@
-//! Type-safe DELETE statement builder using the typestate pattern.
+//! Dynamic DELETE statement builder using the typestate pattern.
+//!
+//! This module provides string-based query building. For compile-time
+//! validated queries using schema traits, use `Delete` from `builder::typed`.
 
 use std::marker::PhantomData;
 
@@ -12,18 +15,20 @@ pub struct NoTable;
 /// Marker: Table has been specified.
 pub struct HasTable;
 
-/// A type-safe DELETE statement builder.
+/// A dynamic DELETE statement builder using string-based column names.
+///
+/// For compile-time validated queries, use `Delete` from `builder::typed`.
 ///
 /// Uses the typestate pattern to ensure that:
 /// - `build()` is only available when table is specified
 /// - `where_clause()` is only available after table is specified
-pub struct Delete<Table> {
+pub struct DeleteDyn<Table> {
     table: Option<String>,
     where_clause: Option<ExprBuilder>,
     _state: PhantomData<Table>,
 }
 
-impl Delete<NoTable> {
+impl DeleteDyn<NoTable> {
     /// Creates a new DELETE builder.
     #[must_use]
     pub fn new() -> Self {
@@ -35,18 +40,18 @@ impl Delete<NoTable> {
     }
 }
 
-impl Default for Delete<NoTable> {
+impl Default for DeleteDyn<NoTable> {
     fn default() -> Self {
         Self::new()
     }
 }
 
 // Transition: NoTable -> HasTable
-impl Delete<NoTable> {
+impl DeleteDyn<NoTable> {
     /// Specifies the table to delete from.
     #[must_use]
-    pub fn from(self, table: &str) -> Delete<HasTable> {
-        Delete {
+    pub fn from(self, table: &str) -> DeleteDyn<HasTable> {
+        DeleteDyn {
             table: Some(String::from(table)),
             where_clause: self.where_clause,
             _state: PhantomData,
@@ -55,7 +60,7 @@ impl Delete<NoTable> {
 }
 
 // Methods available after FROM
-impl Delete<HasTable> {
+impl DeleteDyn<HasTable> {
     /// Adds a WHERE clause.
     ///
     /// **Important**: DELETE without WHERE deletes all rows!
@@ -104,50 +109,50 @@ impl Delete<HasTable> {
 /// A safe DELETE builder that requires a WHERE clause.
 ///
 /// This prevents accidental deletion of all rows.
-pub struct SafeDelete<Table> {
-    inner: Delete<Table>,
+pub struct SafeDeleteDyn<Table> {
+    inner: DeleteDyn<Table>,
 }
 
-impl SafeDelete<NoTable> {
+impl SafeDeleteDyn<NoTable> {
     /// Creates a new safe DELETE builder.
     #[must_use]
     pub fn new() -> Self {
         Self {
-            inner: Delete::new(),
+            inner: DeleteDyn::new(),
         }
     }
 
     /// Specifies the table to delete from.
     #[must_use]
-    pub fn from(self, table: &str) -> SafeDelete<HasTable> {
-        SafeDelete {
+    pub fn from(self, table: &str) -> SafeDeleteDyn<HasTable> {
+        SafeDeleteDyn {
             inner: self.inner.from(table),
         }
     }
 }
 
-impl Default for SafeDelete<NoTable> {
+impl Default for SafeDeleteDyn<NoTable> {
     fn default() -> Self {
         Self::new()
     }
 }
 
 // Safe DELETE requires WHERE before build
-pub struct SafeDeleteWithWhere {
-    inner: Delete<HasTable>,
+pub struct SafeDeleteDynWithWhere {
+    inner: DeleteDyn<HasTable>,
 }
 
-impl SafeDelete<HasTable> {
-    /// Adds a WHERE clause (required for SafeDelete).
+impl SafeDeleteDyn<HasTable> {
+    /// Adds a WHERE clause (required for SafeDeleteDyn).
     #[must_use]
-    pub fn where_clause(self, expr: ExprBuilder) -> SafeDeleteWithWhere {
-        SafeDeleteWithWhere {
+    pub fn where_clause(self, expr: ExprBuilder) -> SafeDeleteDynWithWhere {
+        SafeDeleteDynWithWhere {
             inner: self.inner.where_clause(expr),
         }
     }
 }
 
-impl SafeDeleteWithWhere {
+impl SafeDeleteDynWithWhere {
     /// Builds the DELETE statement.
     #[must_use]
     pub fn build(self) -> (String, Vec<SqlValue>) {
@@ -164,13 +169,13 @@ impl SafeDeleteWithWhere {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builder::col;
+    use crate::builder::dyn_col;
 
     #[test]
     fn test_simple_delete() {
-        let (sql, params) = Delete::new()
+        let (sql, params) = DeleteDyn::new()
             .from("users")
-            .where_clause(col("id").eq(1_i32))
+            .where_clause(dyn_col("id").eq(1_i32))
             .build();
 
         assert_eq!(sql, "DELETE FROM users WHERE id = ?");
@@ -179,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_delete_all() {
-        let (sql, params) = Delete::new().from("temp_data").build();
+        let (sql, params) = DeleteDyn::new().from("temp_data").build();
 
         assert_eq!(sql, "DELETE FROM temp_data");
         assert!(params.is_empty());
@@ -187,12 +192,12 @@ mod tests {
 
     #[test]
     fn test_delete_complex_where() {
-        let (sql, params) = Delete::new()
+        let (sql, params) = DeleteDyn::new()
             .from("orders")
             .where_clause(
-                col("status")
+                dyn_col("status")
                     .eq("cancelled")
-                    .and(col("created_at").lt("2024-01-01")),
+                    .and(dyn_col("created_at").lt("2024-01-01")),
             )
             .build();
 
@@ -205,19 +210,19 @@ mod tests {
 
     #[test]
     fn test_safe_delete() {
-        let (sql, params) = SafeDelete::new()
+        let (sql, params) = SafeDeleteDyn::new()
             .from("users")
-            .where_clause(col("id").eq(1_i32))
+            .where_clause(dyn_col("id").eq(1_i32))
             .build();
 
         assert_eq!(sql, "DELETE FROM users WHERE id = ?");
         assert_eq!(params.len(), 1);
     }
 
-    // This would fail to compile: SafeDelete without WHERE
+    // This would fail to compile: SafeDeleteDyn without WHERE
     // #[test]
     // fn test_safe_delete_without_where_fails() {
-    //     let _ = SafeDelete::new()
+    //     let _ = SafeDeleteDyn::new()
     //         .from("users")
     //         .build();  // Error: method `build` not found
     // }
@@ -225,9 +230,9 @@ mod tests {
     #[test]
     fn test_delete_sql_injection_prevention() {
         let malicious = "1; DROP TABLE users; --";
-        let (sql, params) = Delete::new()
+        let (sql, params) = DeleteDyn::new()
             .from("users")
-            .where_clause(col("id").eq(malicious))
+            .where_clause(dyn_col("id").eq(malicious))
             .build();
 
         assert_eq!(sql, "DELETE FROM users WHERE id = ?");

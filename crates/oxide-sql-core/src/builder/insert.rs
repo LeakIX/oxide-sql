@@ -1,4 +1,7 @@
-//! Type-safe INSERT statement builder using the typestate pattern.
+//! Dynamic INSERT statement builder using the typestate pattern.
+//!
+//! This module provides string-based query building. For compile-time
+//! validated queries using schema traits, use `Insert` from `builder::typed`.
 
 use std::marker::PhantomData;
 
@@ -15,15 +18,17 @@ pub struct NoValues;
 /// Marker: Values have been specified.
 pub struct HasValues;
 
-/// A type-safe INSERT statement builder.
-pub struct Insert<Table, Values> {
+/// A dynamic INSERT statement builder using string-based column names.
+///
+/// For compile-time validated queries, use `Insert` from `builder::typed`.
+pub struct InsertDyn<Table, Values> {
     table: Option<String>,
     columns: Vec<String>,
     values: Vec<Vec<SqlValue>>,
     _state: PhantomData<(Table, Values)>,
 }
 
-impl Insert<NoTable, NoValues> {
+impl InsertDyn<NoTable, NoValues> {
     /// Creates a new INSERT builder.
     #[must_use]
     pub fn new() -> Self {
@@ -36,18 +41,18 @@ impl Insert<NoTable, NoValues> {
     }
 }
 
-impl Default for Insert<NoTable, NoValues> {
+impl Default for InsertDyn<NoTable, NoValues> {
     fn default() -> Self {
         Self::new()
     }
 }
 
 // Transition: NoTable -> HasTable
-impl<Values> Insert<NoTable, Values> {
+impl<Values> InsertDyn<NoTable, Values> {
     /// Specifies the table to insert into.
     #[must_use]
-    pub fn into_table(self, table: &str) -> Insert<HasTable, Values> {
-        Insert {
+    pub fn into_table(self, table: &str) -> InsertDyn<HasTable, Values> {
+        InsertDyn {
             table: Some(String::from(table)),
             columns: self.columns,
             values: self.values,
@@ -57,7 +62,7 @@ impl<Values> Insert<NoTable, Values> {
 }
 
 // Methods available after specifying table
-impl<Values> Insert<HasTable, Values> {
+impl<Values> InsertDyn<HasTable, Values> {
     /// Specifies the columns to insert into.
     #[must_use]
     pub fn columns(mut self, cols: &[&str]) -> Self {
@@ -67,12 +72,12 @@ impl<Values> Insert<HasTable, Values> {
 }
 
 // Transition: NoValues -> HasValues
-impl Insert<HasTable, NoValues> {
+impl InsertDyn<HasTable, NoValues> {
     /// Adds a row of values to insert.
     #[must_use]
-    pub fn values<T: ToSqlValue>(self, vals: Vec<T>) -> Insert<HasTable, HasValues> {
+    pub fn values<T: ToSqlValue>(self, vals: Vec<T>) -> InsertDyn<HasTable, HasValues> {
         let sql_values: Vec<SqlValue> = vals.into_iter().map(ToSqlValue::to_sql_value).collect();
-        Insert {
+        InsertDyn {
             table: self.table,
             columns: self.columns,
             values: vec![sql_values],
@@ -82,12 +87,12 @@ impl Insert<HasTable, NoValues> {
 
     /// Adds multiple rows of values to insert.
     #[must_use]
-    pub fn values_many<T: ToSqlValue>(self, rows: Vec<Vec<T>>) -> Insert<HasTable, HasValues> {
+    pub fn values_many<T: ToSqlValue>(self, rows: Vec<Vec<T>>) -> InsertDyn<HasTable, HasValues> {
         let sql_rows: Vec<Vec<SqlValue>> = rows
             .into_iter()
             .map(|row| row.into_iter().map(ToSqlValue::to_sql_value).collect())
             .collect();
-        Insert {
+        InsertDyn {
             table: self.table,
             columns: self.columns,
             values: sql_rows,
@@ -97,7 +102,7 @@ impl Insert<HasTable, NoValues> {
 }
 
 // Methods available after adding values
-impl Insert<HasTable, HasValues> {
+impl InsertDyn<HasTable, HasValues> {
     /// Adds another row of values.
     #[must_use]
     pub fn and_values<T: ToSqlValue>(mut self, vals: Vec<T>) -> Self {
@@ -158,7 +163,7 @@ mod tests {
 
     #[test]
     fn test_simple_insert() {
-        let (sql, params) = Insert::new()
+        let (sql, params) = InsertDyn::new()
             .into_table("users")
             .columns(&["name", "email"])
             .values(vec!["Alice", "alice@example.com"])
@@ -170,7 +175,7 @@ mod tests {
 
     #[test]
     fn test_insert_multiple_rows() {
-        let (sql, params) = Insert::new()
+        let (sql, params) = InsertDyn::new()
             .into_table("users")
             .columns(&["name"])
             .values(vec!["Alice"])
@@ -184,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_insert_without_columns() {
-        let (sql, params) = Insert::new()
+        let (sql, params) = InsertDyn::new()
             .into_table("users")
             .values(vec!["Alice", "alice@example.com"])
             .build();
@@ -195,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_insert_with_integers() {
-        let (sql, params) = Insert::new()
+        let (sql, params) = InsertDyn::new()
             .into_table("orders")
             .columns(&["user_id", "amount"])
             .values(vec![1_i64.to_sql_value(), 100_i64.to_sql_value()])
@@ -208,7 +213,7 @@ mod tests {
     #[test]
     fn test_insert_sql_injection_prevention() {
         let malicious = "'; DROP TABLE users; --";
-        let (sql, params) = Insert::new()
+        let (sql, params) = InsertDyn::new()
             .into_table("users")
             .columns(&["name"])
             .values(vec![malicious])

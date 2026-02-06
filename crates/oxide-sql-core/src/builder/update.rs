@@ -1,4 +1,7 @@
-//! Type-safe UPDATE statement builder using the typestate pattern.
+//! Dynamic UPDATE statement builder using the typestate pattern.
+//!
+//! This module provides string-based query building. For compile-time
+//! validated queries using schema traits, use `Update` from `builder::typed`.
 
 use std::marker::PhantomData;
 
@@ -22,15 +25,17 @@ struct Assignment {
     value: SqlValue,
 }
 
-/// A type-safe UPDATE statement builder.
-pub struct Update<Table, Set> {
+/// A dynamic UPDATE statement builder using string-based column names.
+///
+/// For compile-time validated queries, use `Update` from `builder::typed`.
+pub struct UpdateDyn<Table, Set> {
     table: Option<String>,
     assignments: Vec<Assignment>,
     where_clause: Option<ExprBuilder>,
     _state: PhantomData<(Table, Set)>,
 }
 
-impl Update<NoTable, NoSet> {
+impl UpdateDyn<NoTable, NoSet> {
     /// Creates a new UPDATE builder.
     #[must_use]
     pub fn new() -> Self {
@@ -43,18 +48,18 @@ impl Update<NoTable, NoSet> {
     }
 }
 
-impl Default for Update<NoTable, NoSet> {
+impl Default for UpdateDyn<NoTable, NoSet> {
     fn default() -> Self {
         Self::new()
     }
 }
 
 // Transition: NoTable -> HasTable
-impl<Set> Update<NoTable, Set> {
+impl<Set> UpdateDyn<NoTable, Set> {
     /// Specifies the table to update.
     #[must_use]
-    pub fn table(self, table: &str) -> Update<HasTable, Set> {
-        Update {
+    pub fn table(self, table: &str) -> UpdateDyn<HasTable, Set> {
+        UpdateDyn {
             table: Some(String::from(table)),
             assignments: self.assignments,
             where_clause: self.where_clause,
@@ -64,11 +69,11 @@ impl<Set> Update<NoTable, Set> {
 }
 
 // Transition: NoSet -> HasSet (requires table)
-impl Update<HasTable, NoSet> {
+impl UpdateDyn<HasTable, NoSet> {
     /// Adds a SET assignment.
     #[must_use]
-    pub fn set<T: ToSqlValue>(self, column: &str, value: T) -> Update<HasTable, HasSet> {
-        Update {
+    pub fn set<T: ToSqlValue>(self, column: &str, value: T) -> UpdateDyn<HasTable, HasSet> {
+        UpdateDyn {
             table: self.table,
             assignments: vec![Assignment {
                 column: String::from(column),
@@ -81,7 +86,7 @@ impl Update<HasTable, NoSet> {
 }
 
 // Methods available after SET
-impl Update<HasTable, HasSet> {
+impl UpdateDyn<HasTable, HasSet> {
     /// Adds another SET assignment.
     #[must_use]
     pub fn set<T: ToSqlValue>(mut self, column: &str, value: T) -> Self {
@@ -142,11 +147,11 @@ impl Update<HasTable, HasSet> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builder::col;
+    use crate::builder::dyn_col;
 
     #[test]
     fn test_simple_update() {
-        let (sql, params) = Update::new().table("users").set("name", "Bob").build();
+        let (sql, params) = UpdateDyn::new().table("users").set("name", "Bob").build();
 
         assert_eq!(sql, "UPDATE users SET name = ?");
         assert_eq!(params.len(), 1);
@@ -154,7 +159,7 @@ mod tests {
 
     #[test]
     fn test_update_multiple_columns() {
-        let (sql, params) = Update::new()
+        let (sql, params) = UpdateDyn::new()
             .table("users")
             .set("name", "Bob")
             .set("email", "bob@example.com")
@@ -167,10 +172,10 @@ mod tests {
 
     #[test]
     fn test_update_with_where() {
-        let (sql, params) = Update::new()
+        let (sql, params) = UpdateDyn::new()
             .table("users")
             .set("active", false)
-            .where_clause(col("id").eq(1_i32))
+            .where_clause(dyn_col("id").eq(1_i32))
             .build();
 
         assert_eq!(sql, "UPDATE users SET active = ? WHERE id = ?");
@@ -180,10 +185,10 @@ mod tests {
     #[test]
     fn test_update_sql_injection_prevention() {
         let malicious = "'; DROP TABLE users; --";
-        let (sql, params) = Update::new()
+        let (sql, params) = UpdateDyn::new()
             .table("users")
             .set("name", malicious)
-            .where_clause(col("id").eq(1_i32))
+            .where_clause(dyn_col("id").eq(1_i32))
             .build();
 
         assert_eq!(sql, "UPDATE users SET name = ? WHERE id = ?");

@@ -1,4 +1,7 @@
-//! Type-safe SELECT statement builder using the typestate pattern.
+//! Dynamic SELECT statement builder using the typestate pattern.
+//!
+//! This module provides string-based query building. For compile-time
+//! validated queries using schema traits, use `Select` from `builder::typed`.
 //!
 //! Invalid SQL constructs are caught at compile time.
 
@@ -18,13 +21,15 @@ pub struct NoFrom;
 /// Marker: FROM clause has been specified.
 pub struct HasFrom;
 
-/// A type-safe SELECT statement builder.
+/// A dynamic SELECT statement builder using string-based column names.
+///
+/// For compile-time validated queries, use `Select` from `builder::typed`.
 ///
 /// Uses the typestate pattern to ensure that:
 /// - `build()` is only available when both columns and FROM are specified
 /// - `where_clause()` is only available after FROM is specified
 /// - `group_by()`, `having()`, `order_by()` follow SQL semantics
-pub struct Select<Cols, From> {
+pub struct SelectDyn<Cols, From> {
     distinct: bool,
     columns: Vec<String>,
     from: Option<String>,
@@ -38,7 +43,7 @@ pub struct Select<Cols, From> {
     _state: PhantomData<(Cols, From)>,
 }
 
-impl Select<NoColumns, NoFrom> {
+impl SelectDyn<NoColumns, NoFrom> {
     /// Creates a new SELECT builder.
     #[must_use]
     pub fn new() -> Self {
@@ -58,18 +63,18 @@ impl Select<NoColumns, NoFrom> {
     }
 }
 
-impl Default for Select<NoColumns, NoFrom> {
+impl Default for SelectDyn<NoColumns, NoFrom> {
     fn default() -> Self {
         Self::new()
     }
 }
 
 // Transition: NoColumns -> HasColumns
-impl<From> Select<NoColumns, From> {
+impl<From> SelectDyn<NoColumns, From> {
     /// Specifies the columns to select.
     #[must_use]
-    pub fn columns(self, cols: &[&str]) -> Select<HasColumns, From> {
-        Select {
+    pub fn columns(self, cols: &[&str]) -> SelectDyn<HasColumns, From> {
+        SelectDyn {
             distinct: self.distinct,
             columns: cols.iter().map(|s| String::from(*s)).collect(),
             from: self.from,
@@ -86,8 +91,8 @@ impl<From> Select<NoColumns, From> {
 
     /// Selects all columns (*).
     #[must_use]
-    pub fn all(self) -> Select<HasColumns, From> {
-        Select {
+    pub fn all(self) -> SelectDyn<HasColumns, From> {
+        SelectDyn {
             distinct: self.distinct,
             columns: vec![String::from("*")],
             from: self.from,
@@ -104,11 +109,11 @@ impl<From> Select<NoColumns, From> {
 }
 
 // Transition: NoFrom -> HasFrom
-impl<Cols> Select<Cols, NoFrom> {
+impl<Cols> SelectDyn<Cols, NoFrom> {
     /// Specifies the table to select from.
     #[must_use]
-    pub fn from(self, table: &str) -> Select<Cols, HasFrom> {
-        Select {
+    pub fn from(self, table: &str) -> SelectDyn<Cols, HasFrom> {
+        SelectDyn {
             distinct: self.distinct,
             columns: self.columns,
             from: Some(String::from(table)),
@@ -125,7 +130,7 @@ impl<Cols> Select<Cols, NoFrom> {
 }
 
 // Methods available after FROM
-impl<Cols> Select<Cols, HasFrom> {
+impl<Cols> SelectDyn<Cols, HasFrom> {
     /// Adds a WHERE clause.
     #[must_use]
     pub fn where_clause(mut self, expr: ExprBuilder) -> Self {
@@ -163,7 +168,7 @@ impl<Cols> Select<Cols, HasFrom> {
 }
 
 // Methods available with columns
-impl<From> Select<HasColumns, From> {
+impl<From> SelectDyn<HasColumns, From> {
     /// Sets DISTINCT.
     #[must_use]
     pub fn distinct(mut self) -> Self {
@@ -173,7 +178,7 @@ impl<From> Select<HasColumns, From> {
 }
 
 // Methods available with FROM (for grouping)
-impl Select<HasColumns, HasFrom> {
+impl SelectDyn<HasColumns, HasFrom> {
     /// Adds a GROUP BY clause.
     #[must_use]
     pub fn group_by(mut self, cols: &[&str]) -> Self {
@@ -285,11 +290,14 @@ impl Select<HasColumns, HasFrom> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builder::col;
+    use crate::builder::dyn_col;
 
     #[test]
     fn test_simple_select() {
-        let (sql, params) = Select::new().columns(&["id", "name"]).from("users").build();
+        let (sql, params) = SelectDyn::new()
+            .columns(&["id", "name"])
+            .from("users")
+            .build();
 
         assert_eq!(sql, "SELECT id, name FROM users");
         assert!(params.is_empty());
@@ -297,13 +305,13 @@ mod tests {
 
     #[test]
     fn test_select_all() {
-        let (sql, _) = Select::new().all().from("users").build();
+        let (sql, _) = SelectDyn::new().all().from("users").build();
         assert_eq!(sql, "SELECT * FROM users");
     }
 
     #[test]
     fn test_select_distinct() {
-        let (sql, _) = Select::new()
+        let (sql, _) = SelectDyn::new()
             .columns(&["status"])
             .distinct()
             .from("orders")
@@ -314,10 +322,10 @@ mod tests {
 
     #[test]
     fn test_select_with_where() {
-        let (sql, params) = Select::new()
+        let (sql, params) = SelectDyn::new()
             .columns(&["id", "name"])
             .from("users")
-            .where_clause(col("active").eq(true))
+            .where_clause(dyn_col("active").eq(true))
             .build();
 
         assert_eq!(sql, "SELECT id, name FROM users WHERE active = ?");
@@ -326,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_select_with_join() {
-        let (sql, _) = Select::new()
+        let (sql, _) = SelectDyn::new()
             .columns(&["u.id", "o.amount"])
             .from("users u")
             .join("orders o", "u.id = o.user_id")
@@ -340,7 +348,7 @@ mod tests {
 
     #[test]
     fn test_select_with_group_by() {
-        let (sql, _) = Select::new()
+        let (sql, _) = SelectDyn::new()
             .columns(&["status", "COUNT(*)"])
             .from("orders")
             .group_by(&["status"])
@@ -351,7 +359,7 @@ mod tests {
 
     #[test]
     fn test_select_with_order_by() {
-        let (sql, _) = Select::new()
+        let (sql, _) = SelectDyn::new()
             .columns(&["id", "name"])
             .from("users")
             .order_by(&["name"])
@@ -362,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_select_with_limit_offset() {
-        let (sql, _) = Select::new()
+        let (sql, _) = SelectDyn::new()
             .columns(&["id"])
             .from("users")
             .limit(10)
@@ -374,14 +382,14 @@ mod tests {
 
     #[test]
     fn test_complex_select() {
-        let (sql, params) = Select::new()
+        let (sql, params) = SelectDyn::new()
             .columns(&["u.id", "u.name", "COUNT(o.id) as order_count"])
             .from("users u")
             .left_join("orders o", "u.id = o.user_id")
             .where_clause(
-                col("u.active")
+                dyn_col("u.active")
                     .eq(true)
-                    .and(col("o.status").not_eq("cancelled")),
+                    .and(dyn_col("o.status").not_eq("cancelled")),
             )
             .group_by(&["u.id", "u.name"])
             .order_by_desc(&["order_count"])
@@ -403,7 +411,7 @@ mod tests {
     // This would fail to compile: SELECT without FROM
     // #[test]
     // fn test_select_without_from_fails() {
-    //     let _ = Select::new()
+    //     let _ = SelectDyn::new()
     //         .columns(&["id"])
     //         .build();  // Error: method `build` not found
     // }
@@ -411,15 +419,15 @@ mod tests {
     // This would fail to compile: WHERE without FROM
     // #[test]
     // fn test_where_without_from_fails() {
-    //     let _ = Select::new()
+    //     let _ = SelectDyn::new()
     //         .columns(&["id"])
-    //         .where_clause(col("id").eq(1));  // Error: no method `where_clause`
+    //         .where_clause(dyn_col("id").eq(1));  // Error: no method `where_clause`
     // }
 
     // This would fail to compile: SELECT without columns
     // #[test]
     // fn test_select_without_columns_fails() {
-    //     let _ = Select::new()
+    //     let _ = SelectDyn::new()
     //         .from("users")
     //         .build();  // Error: method `build` not found
     // }

@@ -11,7 +11,7 @@
 //!
 //! ```compile_fail
 //! // This won't compile - `invalid_column` doesn't exist on Post
-//! let (sql, _) = TypedSelect::<PostTable, _, _>::new()
+//! let (sql, _) = Select::<PostTable, _, _>::new()
 //!     .select::<(PostColumns::InvalidColumn,)>()  // Error!
 //!     .from_table()
 //!     .build();
@@ -33,7 +33,7 @@ use tokio::sync::RwLock;
 
 use oxide_admin::{AdminSite, Fieldset, ModelAdmin};
 use oxide_router::{Method, Request, Response, Router};
-use oxide_sql_core::builder::{typed_col, TypedDelete, TypedInsert, TypedSelect, TypedUpdate};
+use oxide_sql_core::builder::{col, Delete, Insert, Select, Update};
 use oxide_sql_derive::Table;
 
 // ============================================================================
@@ -150,7 +150,7 @@ impl oxide_orm::Model for Tag {
 #[allow(dead_code)]
 fn example_select_queries() {
     // Select specific columns with type safety
-    let (sql, _params) = TypedSelect::<PostTable, _, _>::new()
+    let (sql, _params) = Select::<PostTable, _, _>::new()
         .select::<(
             PostColumns::Id,
             PostColumns::Title,
@@ -159,9 +159,9 @@ fn example_select_queries() {
         )>()
         .from_table()
         .where_clause(
-            typed_col(Post::status())
+            col(Post::status())
                 .eq("published")
-                .and(typed_col(Post::author_id()).eq(1_i64)),
+                .and(col(Post::author_id()).eq(1_i64)),
         )
         .order_by(Post::created_at(), false) // descending
         .limit(10)
@@ -172,19 +172,19 @@ fn example_select_queries() {
     //         WHERE status = ? AND author_id = ? ORDER BY created_at DESC LIMIT 10
 
     // Select all columns
-    let (sql, _) = TypedSelect::<PostTable, _, _>::new()
+    let (sql, _) = Select::<PostTable, _, _>::new()
         .select_all()
         .from_table()
-        .where_clause(typed_col(Post::id()).eq(1_i64))
+        .where_clause(col(Post::id()).eq(1_i64))
         .build();
 
     println!("SELECT * query: {}", sql);
 
     // Using IN clause
-    let (sql, _) = TypedSelect::<PostTable, _, _>::new()
+    let (sql, _) = Select::<PostTable, _, _>::new()
         .select::<(PostColumns::Id, PostColumns::Title)>()
         .from_table()
-        .where_clause(typed_col(Post::status()).in_list(vec!["published", "draft"]))
+        .where_clause(col(Post::status()).in_list(vec!["published", "draft"]))
         .build();
 
     println!("SELECT with IN: {}", sql);
@@ -195,7 +195,7 @@ fn example_select_queries() {
 /// Each `.set()` call validates that the column belongs to the table.
 #[allow(dead_code)]
 fn example_insert_queries() {
-    let (sql, _params) = TypedInsert::<PostTable, _>::new()
+    let (sql, _params) = Insert::<PostTable, _>::new()
         .set(Post::title(), "Hello World")
         .set(Post::slug(), "hello-world")
         .set(Post::content(), "This is my first post.")
@@ -215,11 +215,11 @@ fn example_insert_queries() {
 /// Both the SET clause and WHERE clause columns are validated at compile time.
 #[allow(dead_code)]
 fn example_update_queries() {
-    let (sql, _params) = TypedUpdate::<PostTable, _>::new()
+    let (sql, _params) = Update::<PostTable, _>::new()
         .set(Post::title(), "Updated Title")
         .set(Post::status(), "published")
         .set(Post::updated_at(), "2024-01-16 12:00:00")
-        .where_clause(typed_col(Post::id()).eq(1_i64))
+        .where_clause(col(Post::id()).eq(1_i64))
         .build();
 
     println!("UPDATE query: {}", sql);
@@ -232,19 +232,19 @@ fn example_update_queries() {
 /// The WHERE clause column is validated at compile time.
 #[allow(dead_code)]
 fn example_delete_queries() {
-    let (sql, _params) = TypedDelete::<PostTable>::new()
-        .where_clause(typed_col(Post::id()).eq(1_i64))
+    let (sql, _params) = Delete::<PostTable>::new()
+        .where_clause(col(Post::id()).eq(1_i64))
         .build();
 
     println!("DELETE query: {}", sql);
     // Output: DELETE FROM posts WHERE id = ?
 
     // Delete with complex condition
-    let (sql, _) = TypedDelete::<PostTable>::new()
+    let (sql, _) = Delete::<PostTable>::new()
         .where_clause(
-            typed_col(Post::status())
+            col(Post::status())
                 .eq("draft")
-                .and(typed_col(Post::created_at()).lt("2024-01-01")),
+                .and(col(Post::created_at()).lt("2024-01-01")),
         )
         .build();
 

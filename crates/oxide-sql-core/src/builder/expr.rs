@@ -1,26 +1,30 @@
-//! Type-safe expression builder.
+//! Expression builder for dynamic (string-based) queries.
+//!
+//! For compile-time validated column expressions, use `col` from `builder::typed`.
 
 use super::value::{SqlValue, ToSqlValue};
 
-/// Creates a column reference.
+/// Creates a column reference for dynamic (string-based) queries.
+///
+/// For compile-time validated queries, use `col` from `builder::typed`.
 #[must_use]
-pub fn col(name: &str) -> Column {
-    Column {
+pub fn dyn_col(name: &str) -> ColumnRef {
+    ColumnRef {
         table: None,
         name: String::from(name),
     }
 }
 
-/// A column reference.
+/// A column reference for dynamic (string-based) queries.
 #[derive(Debug, Clone)]
-pub struct Column {
+pub struct ColumnRef {
     /// Optional table qualifier.
     pub table: Option<String>,
     /// Column name.
     pub name: String,
 }
 
-impl Column {
+impl ColumnRef {
     /// Creates a qualified column reference.
     #[must_use]
     pub fn qualified(table: &str, name: &str) -> Self {
@@ -325,8 +329,8 @@ impl ExprBuilder {
     }
 }
 
-impl From<Column> for ExprBuilder {
-    fn from(col: Column) -> Self {
+impl From<ColumnRef> for ExprBuilder {
+    fn from(col: ColumnRef) -> Self {
         Self {
             sql: col.to_sql(),
             params: vec![],
@@ -349,63 +353,66 @@ mod tests {
 
     #[test]
     fn test_column_eq() {
-        let expr = col("name").eq("Alice");
+        let expr = dyn_col("name").eq("Alice");
         assert_eq!(expr.sql(), "name = ?");
         assert_eq!(expr.params().len(), 1);
     }
 
     #[test]
     fn test_column_comparison() {
-        assert_eq!(col("age").gt(18).sql(), "age > ?");
-        assert_eq!(col("age").lt_eq(65).sql(), "age <= ?");
+        assert_eq!(dyn_col("age").gt(18).sql(), "age > ?");
+        assert_eq!(dyn_col("age").lt_eq(65).sql(), "age <= ?");
     }
 
     #[test]
     fn test_is_null() {
-        let expr = col("deleted_at").is_null();
+        let expr = dyn_col("deleted_at").is_null();
         assert_eq!(expr.sql(), "deleted_at IS NULL");
         assert!(expr.params().is_empty());
     }
 
     #[test]
     fn test_like() {
-        let expr = col("email").like("%@example.com");
+        let expr = dyn_col("email").like("%@example.com");
         assert_eq!(expr.sql(), "email LIKE ?");
     }
 
     #[test]
     fn test_between() {
-        let expr = col("price").between(10, 100);
+        let expr = dyn_col("price").between(10, 100);
         assert_eq!(expr.sql(), "price BETWEEN ? AND ?");
         assert_eq!(expr.params().len(), 2);
     }
 
     #[test]
     fn test_in_list() {
-        let expr = col("status").in_list(vec!["active", "pending"]);
+        let expr = dyn_col("status").in_list(vec!["active", "pending"]);
         assert_eq!(expr.sql(), "status IN (?, ?)");
         assert_eq!(expr.params().len(), 2);
     }
 
     #[test]
     fn test_and_or() {
-        let expr = col("active")
-            .eq(true)
-            .and(col("age").gt(18).or(col("verified").eq(true)).paren());
+        let expr = dyn_col("active").eq(true).and(
+            dyn_col("age")
+                .gt(18)
+                .or(dyn_col("verified").eq(true))
+                .paren(),
+        );
         assert_eq!(expr.sql(), "active = ? AND (age > ? OR verified = ?)");
         assert_eq!(expr.params().len(), 3);
     }
 
     #[test]
     fn test_qualified_column() {
-        let expr = Column::qualified("users", "name").eq("Bob");
+        let expr = ColumnRef::qualified("users", "name").eq("Bob");
         assert_eq!(expr.sql(), "users.name = ?");
     }
 
     #[test]
     fn test_sql_injection_prevention() {
         let malicious = "'; DROP TABLE users; --";
-        let expr = col("name").eq(malicious);
+        let expr = dyn_col("name").eq(malicious);
         // The value is parameterized, not interpolated
         assert_eq!(expr.sql(), "name = ?");
         // The malicious input is stored safely as a parameter

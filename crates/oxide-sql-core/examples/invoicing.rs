@@ -8,7 +8,7 @@
 //!
 //! Run with: cargo run --example invoicing
 
-use oxide_sql_core::builder::typed::{typed_col, TypedSelect};
+use oxide_sql_core::builder::{col, Select};
 use oxide_sql_derive::Table;
 
 // =============================================================================
@@ -150,7 +150,7 @@ fn main() {
     println!();
 
     // 1. Get all invoices for the current month
-    let (sql, _) = TypedSelect::<InvoiceTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceTable, _, _>::new()
         .select::<(
             InvoiceColumns::Id,
             InvoiceColumns::InvoiceNumber,
@@ -162,31 +162,31 @@ fn main() {
         )>()
         .from_table()
         .where_clause(
-            typed_col(Invoice::company_id())
+            col(Invoice::company_id())
                 .eq(company_id)
-                .and(typed_col(Invoice::issue_date()).gt_eq("2024-01-01"))
-                .and(typed_col(Invoice::issue_date()).lt_eq("2024-01-31")),
+                .and(col(Invoice::issue_date()).gt_eq("2024-01-01"))
+                .and(col(Invoice::issue_date()).lt_eq("2024-01-31")),
         )
         .order_by(Invoice::issue_date(), false)
         .build();
     print_sql("Invoices for January 2024", &sql);
 
     // 2. Overdue invoices
-    let (sql, _) = TypedSelect::<InvoiceTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceTable, _, _>::new()
         .select_all()
         .from_table()
         .where_clause(
-            typed_col(Invoice::company_id())
+            col(Invoice::company_id())
                 .eq(company_id)
-                .and(typed_col(Invoice::status()).eq("sent"))
-                .and(typed_col(Invoice::due_date()).lt(today)),
+                .and(col(Invoice::status()).eq("sent"))
+                .and(col(Invoice::due_date()).lt(today)),
         )
         .order_by(Invoice::due_date(), true)
         .build();
     print_sql("Overdue invoices", &sql);
 
     // 3. Draft invoices pending review
-    let (sql, _) = TypedSelect::<InvoiceTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceTable, _, _>::new()
         .select::<(
             InvoiceColumns::Id,
             InvoiceColumns::InvoiceNumber,
@@ -196,9 +196,9 @@ fn main() {
         )>()
         .from_table()
         .where_clause(
-            typed_col(Invoice::company_id())
+            col(Invoice::company_id())
                 .eq(company_id)
-                .and(typed_col(Invoice::status()).eq("draft")),
+                .and(col(Invoice::status()).eq("draft")),
         )
         .order_by(Invoice::created_at(), false)
         .build();
@@ -212,7 +212,7 @@ fn main() {
     println!();
 
     // 4. All clients for a company
-    let (sql, _) = TypedSelect::<ClientTable, _, _>::new()
+    let (sql, _) = Select::<ClientTable, _, _>::new()
         .select::<(
             ClientColumns::Id,
             ClientColumns::Name,
@@ -220,32 +220,32 @@ fn main() {
             ClientColumns::PreferredCurrency,
         )>()
         .from_table()
-        .where_clause(typed_col(Client::company_id()).eq(company_id))
+        .where_clause(col(Client::company_id()).eq(company_id))
         .order_by(Client::name(), true)
         .build();
     print_sql("All clients for company", &sql);
 
     // 5. Clients preferring EUR
-    let (sql, _) = TypedSelect::<ClientTable, _, _>::new()
+    let (sql, _) = Select::<ClientTable, _, _>::new()
         .select_all()
         .from_table()
         .where_clause(
-            typed_col(Client::company_id())
+            col(Client::company_id())
                 .eq(company_id)
-                .and(typed_col(Client::preferred_currency()).eq("EUR")),
+                .and(col(Client::preferred_currency()).eq("EUR")),
         )
         .order_by(Client::name(), true)
         .build();
     print_sql("EUR-preferring clients", &sql);
 
     // 6. Search clients by name
-    let (sql, _) = TypedSelect::<ClientTable, _, _>::new()
+    let (sql, _) = Select::<ClientTable, _, _>::new()
         .select::<(ClientColumns::Id, ClientColumns::Name, ClientColumns::Email)>()
         .from_table()
         .where_clause(
-            typed_col(Client::company_id())
+            col(Client::company_id())
                 .eq(company_id)
-                .and(typed_col(Client::name()).like("%acme%")),
+                .and(col(Client::name()).like("%acme%")),
         )
         .limit(10)
         .build();
@@ -260,20 +260,20 @@ fn main() {
 
     // 7. All invoices for a specific client
     let client_id = 42_i64;
-    let (sql, _) = TypedSelect::<InvoiceTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceTable, _, _>::new()
         .select_all()
         .from_table()
         .where_clause(
-            typed_col(Invoice::company_id())
+            col(Invoice::company_id())
                 .eq(company_id)
-                .and(typed_col(Invoice::client_id()).eq(client_id)),
+                .and(col(Invoice::client_id()).eq(client_id)),
         )
         .order_by(Invoice::issue_date(), false)
         .build();
     print_sql(&format!("All invoices for client {}", client_id), &sql);
 
     // 8. Unpaid invoices (sent or overdue)
-    let (sql, _) = TypedSelect::<InvoiceTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceTable, _, _>::new()
         .select::<(
             InvoiceColumns::Id,
             InvoiceColumns::InvoiceNumber,
@@ -283,9 +283,9 @@ fn main() {
         )>()
         .from_table()
         .where_clause(
-            typed_col(Invoice::company_id())
+            col(Invoice::company_id())
                 .eq(company_id)
-                .and(typed_col(Invoice::status()).in_list(vec!["sent", "overdue"])),
+                .and(col(Invoice::status()).in_list(vec!["sent", "overdue"])),
         )
         .order_by(Invoice::due_date(), true)
         .build();
@@ -293,7 +293,7 @@ fn main() {
 
     // 9. Large EUR invoices (> 10,000 EUR)
     let min_amount = 1000000_i64;
-    let (sql, _) = TypedSelect::<InvoiceTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceTable, _, _>::new()
         .select::<(
             InvoiceColumns::Id,
             InvoiceColumns::InvoiceNumber,
@@ -302,17 +302,17 @@ fn main() {
         )>()
         .from_table()
         .where_clause(
-            typed_col(Invoice::company_id())
+            col(Invoice::company_id())
                 .eq(company_id)
-                .and(typed_col(Invoice::total_cents()).gt(min_amount))
-                .and(typed_col(Invoice::currency()).eq("EUR")),
+                .and(col(Invoice::total_cents()).gt(min_amount))
+                .and(col(Invoice::currency()).eq("EUR")),
         )
         .order_by(Invoice::total_cents(), false)
         .build();
     print_sql("Large EUR invoices (> 10,000 EUR)", &sql);
 
     // 10. Recently paid invoices
-    let (sql, _) = TypedSelect::<InvoiceTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceTable, _, _>::new()
         .select::<(
             InvoiceColumns::Id,
             InvoiceColumns::InvoiceNumber,
@@ -321,17 +321,17 @@ fn main() {
         )>()
         .from_table()
         .where_clause(
-            typed_col(Invoice::company_id())
+            col(Invoice::company_id())
                 .eq(company_id)
-                .and(typed_col(Invoice::status()).eq("paid"))
-                .and(typed_col(Invoice::paid_at()).gt_eq("2024-01-08")),
+                .and(col(Invoice::status()).eq("paid"))
+                .and(col(Invoice::paid_at()).gt_eq("2024-01-08")),
         )
         .order_by(Invoice::paid_at(), false)
         .build();
     print_sql("Recently paid invoices (last 7 days)", &sql);
 
     // 11. Foreign currency invoices
-    let (sql, _) = TypedSelect::<InvoiceTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceTable, _, _>::new()
         .select::<(
             InvoiceColumns::Id,
             InvoiceColumns::InvoiceNumber,
@@ -340,9 +340,9 @@ fn main() {
         )>()
         .from_table()
         .where_clause(
-            typed_col(Invoice::company_id())
+            col(Invoice::company_id())
                 .eq(company_id)
-                .and(typed_col(Invoice::currency()).not_eq("EUR")),
+                .and(col(Invoice::currency()).not_eq("EUR")),
         )
         .order_by(Invoice::currency(), true)
         .build();
@@ -357,16 +357,16 @@ fn main() {
 
     // 12. Invoice lines for a specific invoice
     let invoice_id = 123_i64;
-    let (sql, _) = TypedSelect::<InvoiceLineTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceLineTable, _, _>::new()
         .select_all()
         .from_table()
-        .where_clause(typed_col(InvoiceLine::invoice_id()).eq(invoice_id))
+        .where_clause(col(InvoiceLine::invoice_id()).eq(invoice_id))
         .order_by(InvoiceLine::sort_order(), true)
         .build();
     print_sql(&format!("Invoice lines for invoice {}", invoice_id), &sql);
 
     // 13. High-value line items
-    let (sql, _) = TypedSelect::<InvoiceLineTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceLineTable, _, _>::new()
         .select::<(
             InvoiceLineColumns::Id,
             InvoiceLineColumns::InvoiceId,
@@ -374,7 +374,7 @@ fn main() {
             InvoiceLineColumns::TotalCents,
         )>()
         .from_table()
-        .where_clause(typed_col(InvoiceLine::total_cents()).gt(100000_i64))
+        .where_clause(col(InvoiceLine::total_cents()).gt(100000_i64))
         .order_by(InvoiceLine::total_cents(), false)
         .limit(50)
         .build();
@@ -388,16 +388,16 @@ fn main() {
     println!();
 
     // 14. All payments for an invoice
-    let (sql, _) = TypedSelect::<PaymentTable, _, _>::new()
+    let (sql, _) = Select::<PaymentTable, _, _>::new()
         .select_all()
         .from_table()
-        .where_clause(typed_col(Payment::invoice_id()).eq(invoice_id))
+        .where_clause(col(Payment::invoice_id()).eq(invoice_id))
         .order_by(Payment::paid_at(), false)
         .build();
     print_sql(&format!("Payments for invoice {}", invoice_id), &sql);
 
     // 15. Recent bank/card payments
-    let (sql, _) = TypedSelect::<PaymentTable, _, _>::new()
+    let (sql, _) = Select::<PaymentTable, _, _>::new()
         .select::<(
             PaymentColumns::Id,
             PaymentColumns::InvoiceId,
@@ -407,9 +407,9 @@ fn main() {
         )>()
         .from_table()
         .where_clause(
-            typed_col(Payment::payment_method())
+            col(Payment::payment_method())
                 .in_list(vec!["bank_transfer", "credit_card"])
-                .and(typed_col(Payment::paid_at()).gt_eq("2024-01-08")),
+                .and(col(Payment::paid_at()).gt_eq("2024-01-08")),
         )
         .order_by(Payment::paid_at(), false)
         .limit(100)
@@ -424,16 +424,16 @@ fn main() {
     println!();
 
     // 16. Latest USD -> EUR rate
-    let (sql, _) = TypedSelect::<ExchangeRateTable, _, _>::new()
+    let (sql, _) = Select::<ExchangeRateTable, _, _>::new()
         .select::<(
             ExchangeRateColumns::Rate,
             ExchangeRateColumns::EffectiveDate,
         )>()
         .from_table()
         .where_clause(
-            typed_col(ExchangeRate::from_currency())
+            col(ExchangeRate::from_currency())
                 .eq("USD")
-                .and(typed_col(ExchangeRate::to_currency()).eq("EUR")),
+                .and(col(ExchangeRate::to_currency()).eq("EUR")),
         )
         .order_by(ExchangeRate::effective_date(), false)
         .limit(1)
@@ -441,15 +441,15 @@ fn main() {
     print_sql("Latest USD -> EUR exchange rate", &sql);
 
     // 17. Historical EUR -> GBP rates
-    let (sql, _) = TypedSelect::<ExchangeRateTable, _, _>::new()
+    let (sql, _) = Select::<ExchangeRateTable, _, _>::new()
         .select_all()
         .from_table()
         .where_clause(
-            typed_col(ExchangeRate::from_currency())
+            col(ExchangeRate::from_currency())
                 .eq("EUR")
-                .and(typed_col(ExchangeRate::to_currency()).eq("GBP"))
-                .and(typed_col(ExchangeRate::effective_date()).gt_eq("2024-01-01"))
-                .and(typed_col(ExchangeRate::effective_date()).lt_eq("2024-01-31")),
+                .and(col(ExchangeRate::to_currency()).eq("GBP"))
+                .and(col(ExchangeRate::effective_date()).gt_eq("2024-01-01"))
+                .and(col(ExchangeRate::effective_date()).lt_eq("2024-01-31")),
         )
         .order_by(ExchangeRate::effective_date(), true)
         .build();
@@ -466,10 +466,10 @@ fn main() {
     let per_page = 25_i64;
     let offset = (page - 1) * per_page;
 
-    let (sql, _) = TypedSelect::<InvoiceTable, _, _>::new()
+    let (sql, _) = Select::<InvoiceTable, _, _>::new()
         .select_all()
         .from_table()
-        .where_clause(typed_col(Invoice::company_id()).eq(company_id))
+        .where_clause(col(Invoice::company_id()).eq(company_id))
         .order_by(Invoice::created_at(), false)
         .limit(per_page)
         .offset(offset)
@@ -484,22 +484,22 @@ fn main() {
     println!();
 
     // 18. Get company by ID
-    let (sql, _) = TypedSelect::<CompanyTable, _, _>::new()
+    let (sql, _) = Select::<CompanyTable, _, _>::new()
         .select_all()
         .from_table()
-        .where_clause(typed_col(Company::id()).eq(company_id))
+        .where_clause(col(Company::id()).eq(company_id))
         .build();
     print_sql("Get company by ID", &sql);
 
     // 19. Companies using USD
-    let (sql, _) = TypedSelect::<CompanyTable, _, _>::new()
+    let (sql, _) = Select::<CompanyTable, _, _>::new()
         .select::<(
             CompanyColumns::Id,
             CompanyColumns::Name,
             CompanyColumns::DefaultCurrency,
         )>()
         .from_table()
-        .where_clause(typed_col(Company::default_currency()).eq("USD"))
+        .where_clause(col(Company::default_currency()).eq("USD"))
         .order_by(Company::name(), true)
         .build();
     print_sql("Companies using USD as default currency", &sql);

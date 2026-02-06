@@ -166,7 +166,5 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     // Tests are in integration tests since Manager needs database access
 }
