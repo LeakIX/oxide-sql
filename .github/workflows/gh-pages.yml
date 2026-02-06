@@ -20,6 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build rustdoc
+        run: cargo doc --workspace --no-deps
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -33,6 +40,9 @@ jobs:
       - name: Build documentation
         working-directory: doc
         run: npx docusaurus build
+
+      - name: Copy rustdoc into site
+        run: cp -r target/doc doc/build/rustdoc
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4

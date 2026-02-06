@@ -38,106 +38,15 @@ oxide-sql-sqlite = "0.1"  # Optional, for SQLite-specific features
 
 ## Quick Start
 
-### Type-Safe Query Building with Compile-Time Column Validation
+See the [API reference](https://leakix.github.io/oxide-sql/rustdoc/oxide_sql_core/)
+for complete examples with compile-time validation. Key modules:
 
-Define your schema once with `#[derive(Table)]`, and get compile-time validation
-of all column references:
-
-```rust
-use oxide_sql_derive::Table;
-use oxide_sql_core::builder::{TypedSelect, TypedInsert, typed_col};
-
-// Define your model - generates PostTable, PostColumns module, and accessors
-#[derive(Debug, Clone, Table)]
-#[table(name = "posts")]
-pub struct Post {
-    #[column(primary_key)]
-    pub id: i64,
-    pub title: String,
-    pub status: String,
-    pub created_at: String,
-}
-
-// Type-safe SELECT - invalid columns won't compile!
-let (sql, _) = TypedSelect::<PostTable, _, _>::new()
-    .select::<(PostColumns::Id, PostColumns::Title, PostColumns::Status)>()
-    .from_table()
-    .where_clause(
-        typed_col(Post::status()).eq("published")
-            .and(typed_col(Post::created_at()).gt("2024-01-01"))
-    )
-    .order_by(Post::created_at(), false)  // descending
-    .limit(10)
-    .build();
-// Output: SELECT id, title, status FROM posts
-//         WHERE status = ? AND created_at > ? ORDER BY created_at DESC LIMIT 10
-
-// Type-safe INSERT - column names are validated at compile time
-let (sql, _) = TypedInsert::<PostTable, _>::new()
-    .set(Post::title(), "Hello World")
-    .set(Post::status(), "draft")
-    .set(Post::created_at(), "2024-01-15")
-    .build();
-// Output: INSERT INTO posts (title, status, created_at) VALUES (?, ?, ?)
-
-// This would NOT compile - InvalidColumn doesn't exist on Post:
-// TypedSelect::<PostTable, _, _>::new()
-//     .select::<(PostColumns::InvalidColumn,)>()  // Compile error!
-```
-
-### Basic Query Building (String-Based)
-
-For simpler cases without compile-time column checking:
-
-```rust
-use oxide_sql_core::builder::{Select, col};
-
-let (sql, params) = Select::new()
-    .columns(&["id", "name"])
-    .from("users")
-    .where_clause(col("active").eq(true))
-    .build();
-
-assert_eq!(sql, "SELECT id, name FROM users WHERE active = ?");
-
-// This would NOT compile - missing FROM clause:
-// let query = Select::new()
-//     .columns(&["id", "name"])
-//     .build();  // Error: method `build` not found
-```
-
-### SQL Injection Prevention
-
-User input is always parameterized, never interpolated:
-
-```rust
-use oxide_sql_core::builder::{Select, col};
-
-let user_input = "'; DROP TABLE users; --";
-let (sql, params) = Select::new()
-    .columns(&["id"])
-    .from("users")
-    .where_clause(col("name").eq(user_input))
-    .build();
-
-// sql = "SELECT id FROM users WHERE name = ?"
-// The malicious input is safely stored as a parameter
-```
-
-### SQLite UPSERT
-
-```rust
-use oxide_sql_sqlite::builder::Upsert;
-use oxide_sql_core::builder::col;
-
-let (sql, params) = Upsert::new()
-    .into_table("users")
-    .columns(&["id", "name", "email"])
-    .values(&[&1_i32, &"Alice", &"alice@example.com"])
-    .on_conflict(&["id"])
-    .do_update(&["name", "email"])
-    .build();
-```
+- [`oxide_sql_core::builder`](https://leakix.github.io/oxide-sql/rustdoc/oxide_sql_core/builder/)
+  -- type-safe and dynamic query builders
+- [`oxide_sql_core::builder::typed`](https://leakix.github.io/oxide-sql/rustdoc/oxide_sql_core/builder/typed/)
+  -- compile-time column validation with `#[derive(Table)]`
+- [`oxide_sql_sqlite::builder`](https://leakix.github.io/oxide-sql/rustdoc/oxide_sql_sqlite/builder/)
+  -- SQLite-specific extensions (UPSERT)
 
 ## Crates
 
@@ -154,7 +63,7 @@ let (sql, params) = Upsert::new()
 ## Documentation
 
 - [Online Documentation](https://leakix.github.io/oxide-sql/)
-- [API Reference](https://docs.rs/oxide-sql-core)
+- [API Reference (rustdoc)](https://leakix.github.io/oxide-sql/rustdoc/oxide_sql_core/)
 
 ## Development
 
