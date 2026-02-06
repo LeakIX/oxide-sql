@@ -107,22 +107,11 @@ sqlmap -u "http://example.com/page?id=1" --technique=T --time-sec=5
 ## How Oxide SQL Prevents Blind SQL Injection
 
 The same parameterization that prevents classic SQL injection also prevents
-blind SQL injection:
+blind SQL injection. Whether the attack is visible or blind, SLEEP payloads
+and boolean-based probes are treated as literal string values.
 
-```rust
-use oxide_sql_core::builder::{Select, col};
-
-// Whether the attack is visible or blind, parameterization prevents it
-let malicious = "' AND SLEEP(5)--";
-let (sql, params) = Select::new()
-    .columns(&["id"])
-    .from("products")
-    .where_clause(col("name").eq(malicious))
-    .build();
-
-// sql = "SELECT id FROM products WHERE name = ?"
-// The SLEEP payload is treated as a literal string value
-```
+See the [builder module rustdoc](pathname:///oxide-sql/rustdoc/oxide_sql_core/builder/) for
+examples.
 
 ## References
 

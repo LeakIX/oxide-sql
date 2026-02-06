@@ -131,23 +131,13 @@ According to the Verizon 2024 Data Breach Investigations Report:
 
 ## How Oxide SQL Helps
 
-Oxide SQL eliminates SQL injection vulnerabilities at the source:
+Oxide SQL eliminates SQL injection vulnerabilities at the source. Every query
+is automatically parameterized, and no matter what user input contains, it
+cannot modify the query structure. By making parameterized queries the only way
+to build queries, Oxide SQL prevents SQL injection by design.
 
-```rust
-use oxide_sql_core::builder::{Select, col};
-
-// Every query is automatically parameterized
-let (sql, params) = Select::new()
-    .columns(&["*"])
-    .from("users")
-    .where_clause(col("id").eq(user_input))
-    .build();
-
-// No matter what user_input contains, it cannot modify the query structure
-```
-
-By making parameterized queries the only way to build queries, Oxide SQL
-prevents SQL injection by design.
+See the [builder module rustdoc](pathname:///oxide-sql/rustdoc/oxide_sql_core/builder/) for
+examples.
 
 ## References
 

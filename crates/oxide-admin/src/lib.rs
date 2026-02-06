@@ -14,33 +14,18 @@
 //!
 //! ## Quick Start
 //!
-//! ```ignore
-//! use oxide_admin::{AdminSite, ModelAdmin, Fieldset};
-//! use oxide_orm::Model;
+//! Run the blog admin example:
 //!
-//! // Define your model
-//! #[derive(Model)]
-//! struct Post {
-//!     id: i64,
-//!     title: String,
-//!     content: String,
-//!     status: String,
-//! }
-//!
-//! // Create admin site
-//! let admin = AdminSite::new("Blog Admin")
-//!     .register::<Post>(
-//!         ModelAdmin::new()
-//!             .list_display(&["id", "title", "status"])
-//!             .list_filter(&["status"])
-//!             .search_fields(&["title", "content"])
-//!             .fieldset(Fieldset::named("Content", &["title", "content"]))
-//!             .fieldset(Fieldset::named("Publishing", &["status"]).collapse())
-//!     );
-//!
-//! // Get routes for your router
-//! let routes = admin.routes();
+//! ```bash
+//! cargo run -p oxide-admin --example blog_admin
 //! ```
+//!
+//! Then open <http://localhost:3000/admin/> and login with
+//! `admin` / `admin123`.
+//!
+//! See the [`blog_admin`
+//! example](https://github.com/LeakIX/oxide-sql/blob/main/crates/oxide-admin/examples/blog_admin.rs)
+//! for full source code.
 //!
 //! ## ModelAdmin Options
 //!

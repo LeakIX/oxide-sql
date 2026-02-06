@@ -209,21 +209,11 @@ If you find SQL injection vulnerabilities:
 ## Using Oxide SQL for Secure Development
 
 While testing tools help find vulnerabilities, preventing them is better. Oxide
-SQL provides compile-time guarantees:
+SQL provides compile-time guarantees -- every query is safe by construction,
+and SQL injection is impossible through the type-safe API.
 
-```rust
-use oxide_sql_core::builder::{Select, col};
-
-// Every query is safe by construction
-let (sql, params) = Select::new()
-    .columns(&["*"])
-    .from("users")
-    .where_clause(col("username").eq(user_input))
-    .build();
-```
-
-With Oxide SQL, there's nothing to test for - SQL injection is impossible
-through the type-safe API.
+See the [builder module rustdoc](pathname:///oxide-sql/rustdoc/oxide_sql_core/builder/) for
+examples.
 
 ## References
 

@@ -26,26 +26,6 @@ Then open http://localhost:3000/admin/ and login with `admin` / `admin123`.
 - **Customizable Fieldsets**: Group related fields together
 - **Responsive Design**: Mobile-friendly interface
 
-## Creating an Admin Site
-
-```rust
-use oxide_admin::{AdminSite, ModelAdmin, Fieldset};
-
-let admin = AdminSite::new("Blog Admin")
-    .register::<Post>(
-        ModelAdmin::new()
-            .list_display(&["id", "title", "status", "created_at"])
-            .list_filter(&["status"])
-            .search_fields(&["title", "content"])
-            .fieldset(Fieldset::named("Content", &["title", "slug", "content"]))
-            .fieldset(Fieldset::named("Publishing", &["status"]).collapse())
-    )
-    .register::<Comment>(
-        ModelAdmin::new()
-            .list_display(&["id", "author", "created_at"])
-    );
-```
-
 ## ModelAdmin Options
 
 | Option | Description |
@@ -62,45 +42,12 @@ let admin = AdminSite::new("Blog Admin")
 | `fieldsets` | Group fields with titles |
 | `date_hierarchy` | Add date-based drill-down navigation |
 
-## Fieldsets
-
-Group related fields together:
-
-```rust
-use oxide_admin::Fieldset;
-
-ModelAdmin::new()
-    .fieldset(Fieldset::named("Content", &["title", "slug", "content"]))
-    .fieldset(
-        Fieldset::named("Publishing", &["status", "author_id"])
-            .description("Control when and how this is published")
-            .collapse()  // Collapsed by default
-    )
-```
-
 ## Built-in Actions
 
 - `DeleteSelectedAction` - Delete selected items
 - `ActivateSelectedAction` - Mark items as active
 - `DeactivateSelectedAction` - Mark items as inactive
 - `ExportCsvAction` - Export to CSV
-
-## Custom Actions
-
-```rust
-use oxide_admin::{Action, ActionResult, CustomAction};
-
-let custom_action = CustomAction::new(
-    "publish_selected",
-    "Publish selected posts",
-    |pks| Box::pin(async move {
-        ActionResult::success(
-            format!("Published {} posts", pks.len()),
-            pks.len()
-        )
-    })
-);
-```
 
 ## Filters
 
@@ -111,3 +58,8 @@ Built-in filter types:
 - `DateRangeFilter` - Date range picker
 - `RangeFilter` - Numeric range
 - `NullFilter` - Filter by null/not null
+
+## API Reference
+
+See the [`oxide_admin` rustdoc](pathname:///oxide-sql/rustdoc/oxide_admin/) for the full API with
+code examples for creating admin sites, fieldsets, custom actions, and filters.

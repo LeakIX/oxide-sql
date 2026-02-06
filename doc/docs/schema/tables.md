@@ -6,105 +6,13 @@ sidebar_position: 1
 
 Use the `#[derive(Table)]` macro to define database tables as Rust structs.
 
-## Basic Table Definition
+## Features
 
-```rust
-use oxide_sql_derive::Table;
-
-#[derive(Table)]
-struct User {
-    id: i32,
-    name: String,
-    email: String,
-}
-```
-
-By default, the table name is the snake_case version of the struct name
-(`user` in this case).
-
-## Custom Table Name
-
-Use the `#[table]` attribute to specify a custom table name:
-
-```rust
-use oxide_sql_derive::Table;
-
-#[derive(Table)]
-#[table(name = "app_users")]
-struct User {
-    id: i32,
-    name: String,
-}
-```
-
-## Generated Types
-
-For a struct `User`, the macro generates:
-
-### UserTable
-
-A zero-sized type implementing the `Table` trait:
-
-```rust
-// Generated automatically
-pub struct UserTable;
-
-impl Table for UserTable {
-    type Row = User;
-    const NAME: &'static str = "user";
-    const COLUMNS: &'static [&'static str] = &["id", "name", "email"];
-    const PRIMARY_KEY: Option<&'static str> = None;
-}
-```
-
-### UserColumns Module
-
-A module containing column types:
-
-```rust
-// Generated automatically
-pub mod UserColumns {
-    pub struct Id;      // Implements Column<Table = UserTable, Type = i32>
-    pub struct Name;    // Implements Column<Table = UserTable, Type = String>
-    pub struct Email;   // Implements Column<Table = UserTable, Type = String>
-}
-```
-
-### Accessor Methods
-
-Both `User` and `UserTable` get accessor methods:
-
-```rust
-// Access column types
-let id_col = User::id();        // Returns UserColumns::Id
-let name_col = UserTable::name();  // Returns UserColumns::Name
-```
-
-## Multiple Tables
-
-Define related tables with proper type safety:
-
-```rust
-use oxide_sql_derive::Table;
-
-#[derive(Table)]
-#[table(name = "users")]
-struct User {
-    #[column(primary_key)]
-    id: i32,
-    name: String,
-}
-
-#[derive(Table)]
-#[table(name = "posts")]
-struct Post {
-    #[column(primary_key)]
-    id: i32,
-    user_id: i32,  // Foreign key to users
-    title: String,
-    content: String,
-}
-```
+- Automatic table name from struct name (snake_case)
+- Custom table names via `#[table(name = "...")]`
+- Generated `UserTable` type implementing the `Table` trait
+- Generated `UserColumns` module with column types
+- Accessor methods on both the struct and table type
 
 ## Supported Field Types
 
@@ -118,3 +26,8 @@ The derive macro works with any Rust type. Common mappings:
 | `bool` | BOOLEAN / INTEGER |
 | `Vec<u8>` | BLOB |
 | `Option<T>` | Nullable column |
+
+## API Reference
+
+See the [`#[derive(Table)]` rustdoc](pathname:///oxide-sql/rustdoc/oxide_sql_derive/) for the full
+macro documentation with code examples.

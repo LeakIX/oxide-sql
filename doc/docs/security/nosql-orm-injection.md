@@ -169,24 +169,14 @@ LOAD DATA INFILE '/etc/passwd' INTO TABLE temp_table;
 ## How Oxide SQL Helps
 
 Oxide SQL prevents ORM-like injection vulnerabilities by enforcing
-parameterization at the type level:
+parameterization at the type level. The type system prevents unsafe string
+concatenation, and there is no way to inject raw SQL -- the builder API only
+accepts structured components. Unlike ORMs that provide "escape hatches" for
+raw SQL, Oxide SQL's builder pattern makes injection impossible through its API
+design.
 
-```rust
-use oxide_sql_core::builder::{Select, col};
-
-// The type system prevents unsafe string concatenation
-let (sql, params) = Select::new()
-    .columns(&["*"])
-    .from("users")
-    .where_clause(col("id").eq(user_id))
-    .build();
-
-// There's no way to inject raw SQL - the builder API only accepts
-// structured components
-```
-
-Unlike ORMs that provide "escape hatches" for raw SQL, Oxide SQL's builder
-pattern makes injection impossible through its API design.
+See the [builder module rustdoc](pathname:///oxide-sql/rustdoc/oxide_sql_core/builder/) for
+examples.
 
 ## References
 

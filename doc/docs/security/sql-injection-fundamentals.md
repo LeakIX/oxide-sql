@@ -81,25 +81,11 @@ SQL injection can lead to:
 ## How Oxide SQL Prevents This
 
 Oxide SQL uses parameterized queries by default. User input is never
-interpolated into SQL strings:
+interpolated into SQL strings. Malicious input like `admin'--` is treated as a
+literal string value, not as SQL code.
 
-```rust
-use oxide_sql_core::builder::{Select, col};
-
-// User input is automatically parameterized
-let user_input = "admin'--";
-let (sql, params) = Select::new()
-    .columns(&["id", "name"])
-    .from("users")
-    .where_clause(col("username").eq(user_input))
-    .build();
-
-// sql = "SELECT id, name FROM users WHERE username = ?"
-// params = [SqlValue::Text("admin'--")]
-```
-
-The malicious input `admin'--` is treated as a literal string value, not as
-SQL code.
+See the [builder module rustdoc](pathname:///oxide-sql/rustdoc/oxide_sql_core/builder/) for
+examples of parameterized query construction.
 
 ## References
 

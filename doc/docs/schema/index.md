@@ -10,27 +10,9 @@ ensuring queries are valid before runtime.
 
 ## Overview
 
-Instead of using string column names, you define your schema as Rust structs:
-
-```rust
-use oxide_sql_derive::Table;
-
-#[derive(Table)]
-#[table(name = "users")]
-struct User {
-    #[column(primary_key)]
-    id: i32,
-    name: String,
-    email: String,
-    active: bool,
-}
-```
-
-The `#[derive(Table)]` macro generates:
-
-- `UserTable` - Table metadata type
-- `UserColumns::Id`, `UserColumns::Name`, etc. - Column types
-- Accessor methods for type-safe queries
+Instead of using string column names, you define your schema as Rust structs
+with `#[derive(Table)]`. The macro generates table metadata types, column
+types, and accessor methods for type-safe queries.
 
 ## Benefits
 
@@ -46,3 +28,10 @@ See the following guides:
 - [Defining Tables](./tables) - How to define table schemas
 - [Typed Queries](./queries) - Building queries with type safety
 - [Column Attributes](./attributes) - Available column configurations
+
+## API Reference
+
+See the [derive macro rustdoc](pathname:///oxide-sql/rustdoc/oxide_sql_derive/) for macro
+documentation and the
+[typed builder module rustdoc](pathname:///oxide-sql/rustdoc/oxide_sql_core/builder/typed/) for the
+typed query builders.

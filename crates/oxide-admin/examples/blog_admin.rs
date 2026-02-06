@@ -790,7 +790,7 @@ fn render_post_list(
     _admin: &AdminSite,
 ) -> String {
     let per_page = 25;
-    let total_pages = (posts.len() + per_page - 1) / per_page;
+    let total_pages = posts.len().div_ceil(per_page);
     let start = (page - 1) * per_page;
     let page_posts: Vec<_> = posts.iter().skip(start).take(per_page).collect();
 

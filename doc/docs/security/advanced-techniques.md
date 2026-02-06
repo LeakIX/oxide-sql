@@ -166,25 +166,13 @@ Some WAFs didn't recognize SQL within JSON payloads.
 
 ## How Oxide SQL Protects Against These
 
-All of these advanced techniques are prevented by parameterized queries:
+All of these advanced techniques are prevented by parameterized queries. The
+SQL structure is fixed at compile time, and user input can never modify the
+query structure -- UNION attack payloads, error-based probes, and other
+malicious input are all treated as literal text.
 
-```rust
-use oxide_sql_core::builder::{Select, col};
-
-// UNION attack attempt
-let payload = "' UNION SELECT password FROM users--";
-let (sql, _) = Select::new()
-    .columns(&["name"])
-    .from("products")
-    .where_clause(col("id").eq(payload))
-    .build();
-
-// Result: "SELECT name FROM products WHERE id = ?"
-// The UNION attack is treated as literal text
-```
-
-The SQL structure is fixed at compile time. User input can never modify the
-query structure.
+See the [builder module rustdoc](pathname:///oxide-sql/rustdoc/oxide_sql_core/builder/) for
+examples.
 
 ## References
 

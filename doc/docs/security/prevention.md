@@ -61,18 +61,8 @@ $stmt->execute(['username' => $username]);
 
 **Rust (with Oxide SQL):**
 
-```rust
-use oxide_sql_core::builder::{Select, col};
-
-let (sql, params) = Select::new()
-    .columns(&["id", "name"])
-    .from("users")
-    .where_clause(col("username").eq(username))
-    .build();
-
-// sql = "SELECT id, name FROM users WHERE username = ?"
-// params = [SqlValue::Text(username)]
-```
+See the [builder module rustdoc](pathname:///oxide-sql/rustdoc/oxide_sql_core/builder/) for
+parameterized query examples.
 
 ## 2. Stored Procedures
 

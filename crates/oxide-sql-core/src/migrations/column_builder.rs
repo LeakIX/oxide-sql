@@ -519,7 +519,7 @@ mod tests {
         assert_eq!(DefaultValue::Boolean(true).to_sql(), "TRUE");
         assert_eq!(DefaultValue::Boolean(false).to_sql(), "FALSE");
         assert_eq!(DefaultValue::Integer(42).to_sql(), "42");
-        assert_eq!(DefaultValue::Float(3.14).to_sql(), "3.14");
+        assert_eq!(DefaultValue::Float(3.15).to_sql(), "3.15");
         assert_eq!(DefaultValue::String("hello".into()).to_sql(), "'hello'");
         assert_eq!(DefaultValue::String("it's".into()).to_sql(), "'it''s'"); // Escaped
         assert_eq!(
