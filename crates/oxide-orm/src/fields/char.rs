@@ -6,12 +6,12 @@ use super::{Field, FieldOptions};
 ///
 /// # Example
 ///
-/// ```ignore
-/// #[derive(Model)]
-/// struct User {
-///     #[field(max_length = 150)]
-///     username: String,
-/// }
+/// ```rust
+/// use oxide_orm::fields::{CharField, Field};
+///
+/// let field = CharField::new(150);
+/// assert!(field.validate("short_username").is_ok());
+/// assert_eq!(field.sql_type(), "VARCHAR");
 /// ```
 #[derive(Debug, Clone)]
 pub struct CharField {

@@ -10,33 +10,49 @@
 //!
 //! ## Quick Start
 //!
-//! ```ignore
-//! use oxide_forms::{FormFieldDef, FormBuilder, render_bootstrap_form};
+//! ```rust
+//! use oxide_forms::{
+//!     FormFieldDef, FormBuilder, ValidationErrors,
+//!     render_bootstrap_form,
+//! };
 //! use oxide_forms::widgets::BootstrapTextInput;
 //! use oxide_forms::validation::RequiredValidator;
+//! use std::collections::HashMap;
 //!
 //! // Define form fields
 //! let fields = FormBuilder::new()
 //!     .field(
-//!         FormFieldDef::new("username", "Username", BootstrapTextInput::new())
-//!             .required()
-//!             .validator(RequiredValidator::new())
-//!             .help_text("Choose a unique username")
+//!         FormFieldDef::new(
+//!             "username", "Username",
+//!             BootstrapTextInput::new(),
+//!         )
+//!         .required()
+//!         .validator(RequiredValidator::new())
+//!         .help_text("Choose a unique username")
 //!     )
 //!     .field(
-//!         FormFieldDef::new("email", "Email", BootstrapTextInput::email())
-//!             .required()
+//!         FormFieldDef::new(
+//!             "email", "Email",
+//!             BootstrapTextInput::email(),
+//!         )
+//!         .required()
 //!     )
 //!     .build();
 //!
 //! // Render as Bootstrap 5 form
-//! let html = render_bootstrap_form(&fields, &values, &errors, "/submit", "POST");
+//! let values = HashMap::new();
+//! let errors = ValidationErrors::new();
+//! let html = render_bootstrap_form(
+//!     &fields, &values, &errors, "/submit", "POST",
+//! );
 //! ```
 //!
 //! ## Using Field Helpers
 //!
-//! ```ignore
-//! use oxide_forms::fields::{char_field, email_field, password_field, choice_field};
+//! ```rust
+//! use oxide_forms::fields::{
+//!     char_field, email_field, password_field, choice_field,
+//! };
 //!
 //! let fields = vec![
 //!     char_field("username", "Username", 150, true),
@@ -51,19 +67,29 @@
 //!
 //! ## Validation
 //!
-//! ```ignore
-//! use oxide_forms::validation::{RequiredValidator, MaxLengthValidator, EmailValidator};
+//! ```rust
+//! use oxide_forms::FormFieldDef;
+//! use oxide_forms::ValidationErrors;
+//! use oxide_forms::widgets::BootstrapTextInput;
+//! use oxide_forms::validation::{
+//!     RequiredValidator, EmailValidator, Validator,
+//! };
 //!
-//! let field = FormFieldDef::new("email", "Email", BootstrapTextInput::email())
-//!     .validator(RequiredValidator::new())
-//!     .validator(EmailValidator::new());
+//! let field = FormFieldDef::new(
+//!     "email", "Email", BootstrapTextInput::email(),
+//! )
+//! .validator(RequiredValidator::new())
+//! .validator(EmailValidator::new());
 //!
 //! // Validate a value
+//! let value = "user@example.com";
+//! let mut errors = ValidationErrors::new();
 //! for validator in &field.validators {
 //!     if let Err(msg) = validator.validate(value) {
 //!         errors.add(&field.name, msg);
 //!     }
 //! }
+//! assert!(errors.is_empty());
 //! ```
 //!
 //! ## Widgets

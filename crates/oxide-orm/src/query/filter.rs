@@ -10,7 +10,7 @@ use std::fmt;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
 /// use oxide_orm::Q;
 ///
 /// // Simple equality

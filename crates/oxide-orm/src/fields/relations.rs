@@ -3,20 +3,7 @@
 use super::{Field, FieldOptions};
 use std::marker::PhantomData;
 
-/// A foreign key field that references another model.
-///
-/// # Example
-///
-/// ```ignore
-/// #[derive(Model)]
-/// struct Comment {
-///     #[field(primary_key, auto)]
-///     id: i64,
-///     #[field(foreign_key = "Post")]
-///     post_id: i64,
-///     content: String,
-/// }
-/// ```
+/// A foreign key field that references another model's primary key.
 #[derive(Debug, Clone)]
 pub struct ForeignKey<T> {
     /// The related model name.
@@ -118,15 +105,15 @@ impl<T> Field for ForeignKey<T> {
 ///
 /// # Example
 ///
-/// ```ignore
-/// #[derive(Model)]
-/// struct Article {
-///     #[field(primary_key, auto)]
-///     id: i64,
-///     title: String,
-///     #[field(many_to_many = "Tag")]
-///     tags: Vec<Tag>,
-/// }
+/// ```rust
+/// use oxide_orm::fields::ManyToMany;
+///
+/// let field: ManyToMany<()> = ManyToMany::new("Tag");
+/// assert_eq!(field.junction_table("Article"), "article_tag");
+///
+/// let field: ManyToMany<()> =
+///     ManyToMany::new("Tag").through("article_tags");
+/// assert_eq!(field.junction_table("Article"), "article_tags");
 /// ```
 #[derive(Debug, Clone)]
 pub struct ManyToMany<T> {

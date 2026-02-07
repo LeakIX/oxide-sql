@@ -74,17 +74,32 @@ impl OrderBy {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use oxide_orm::QuerySet;
+/// ```rust
+/// use oxide_orm::{QuerySet, Q, Model, Table};
 ///
+/// # struct User;
+/// # struct UserTable;
+/// # impl Table for UserTable {
+/// #     type Row = User;
+/// #     const NAME: &'static str = "users";
+/// #     const COLUMNS: &'static [&'static str] =
+/// #         &["id", "name", "is_active", "role", "created_at"];
+/// #     const PRIMARY_KEY: Option<&'static str> = Some("id");
+/// # }
+/// # impl Model for User {
+/// #     type Table = UserTable;
+/// #     type PrimaryKey = i64;
+/// #     fn pk_column() -> &'static str { "id" }
+/// #     fn pk(&self) -> i64 { 0 }
+/// #     fn is_saved(&self) -> bool { false }
+/// # }
 /// // Chain multiple operations
-/// let users = User::objects()
+/// let (sql, params) = QuerySet::<User>::new()
 ///     .filter(Q::eq("is_active", true))
 ///     .exclude(Q::eq("role", "banned"))
 ///     .order_by("-created_at")
 ///     .limit(10)
-///     .execute(&pool)
-///     .await?;
+///     .build_select();
 /// ```
 #[derive(Debug)]
 pub struct QuerySet<M: Model> {
@@ -167,9 +182,29 @@ impl<M: Model> QuerySet<M> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// use oxide_orm::{QuerySet, Model, Table};
+    ///
+    /// # struct User;
+    /// # struct UserTable;
+    /// # impl Table for UserTable {
+    /// #     type Row = User;
+    /// #     const NAME: &'static str = "users";
+    /// #     const COLUMNS: &'static [&'static str] =
+    /// #         &["id", "name", "created_at"];
+    /// #     const PRIMARY_KEY: Option<&'static str> = Some("id");
+    /// # }
+    /// # impl Model for User {
+    /// #     type Table = UserTable;
+    /// #     type PrimaryKey = i64;
+    /// #     fn pk_column() -> &'static str { "id" }
+    /// #     fn pk(&self) -> i64 { 0 }
+    /// #     fn is_saved(&self) -> bool { false }
+    /// # }
     /// // Order by created_at descending, then name ascending
-    /// qs.order_by("-created_at").order_by("name")
+    /// let qs = QuerySet::<User>::new()
+    ///     .order_by("-created_at")
+    ///     .order_by("name");
     /// ```
     #[must_use]
     pub fn order_by(mut self, spec: &str) -> Self {
