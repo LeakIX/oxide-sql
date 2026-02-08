@@ -891,6 +891,7 @@ checksum = "b6b1055728c74b9cf48da2139b1951aba5a85e473f9778eefbaabd4f3239afb8"
 dependencies = [
  "ironhtml-attributes",
  "ironhtml-elements",
+ "ironhtml-macro",
 ]
 
 [[package]]
@@ -904,6 +905,17 @@ name = "ironhtml-elements"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a0947a22d731427b06d249cb3c17f7fb517c4218e4f9f5a8a7e447f38e5d72d"
+
+[[package]]
+name = "ironhtml-macro"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b632b8eddbc93335a6a04e8026f212830cc8d5acb4726ce2f49f8b7c5ec7f51"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "is_terminal_polyfill"

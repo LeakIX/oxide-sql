@@ -1,9 +1,9 @@
 //! Base layout template.
 
+use ironhtml::html;
 use ironhtml::typed::{Document, Element};
 use ironhtml_elements::{
-    Body, Button, Div, Head, Hr, Html, Li, Link, Meta, Nav, Ol, Script, Style, Title, Ul, A, H2,
-    H5, I,
+    Body, Div, Head, Hr, Html, Li, Link, Meta, Nav, Ol, Script, Style, Title, Ul, H5, I,
 };
 
 /// Context for rendering the admin layout.
@@ -88,8 +88,9 @@ pub fn render_base(ctx: &AdminContext) -> String {
 
     Document::new()
         .doctype()
-        .root::<Html, _>(|html| {
-            html.attr("lang", "en")
+        .root::<Html, _>(|html_el| {
+            html_el
+                .attr("lang", "en")
                 .data("bs-theme", "light")
                 .child::<Head, _>(|head| {
                     head.child::<Meta, _>(|m| {
@@ -130,11 +131,14 @@ pub fn render_base(ctx: &AdminContext) -> String {
                                         cw,
                                         &ctx.messages,
                                     );
-                                cw.child::<H2, _>(|h| {
-                                    h.class("mb-4")
-                                        .text(&ctx.page_title)
-                                })
-                                .raw(&ctx.content)
+                                let pt = &ctx.page_title;
+                                let title_el = html! {
+                                    h2.class("mb-4") {
+                                        #pt
+                                    }
+                                };
+                                cw.raw(title_el.render())
+                                    .raw(&ctx.content)
                             })
                     })
                     .child::<Script, _>(|s| {
@@ -147,56 +151,62 @@ pub fn render_base(ctx: &AdminContext) -> String {
 }
 
 fn render_sidebar(nav: Element<Nav>, ctx: &AdminContext) -> Element<Nav> {
+    let sh = &ctx.site_header;
+
     nav.class("sidebar")
         .child::<Div, _>(|d| {
             d.class("sidebar-header").child::<H5, _>(|h| {
                 h.child::<I, _>(|i| i.class("bi bi-gear-fill me-2"))
-                    .text(&ctx.site_header)
+                    .text(sh)
             })
         })
         .child::<Ul, _>(|ul| {
             let ul = ul
                 .class("nav flex-column")
                 .child::<Li, _>(|li| {
-                    li.class("nav-item").child::<A, _>(|a| {
-                        a.class("nav-link")
-                            .attr("href", "/admin/")
-                            .child::<I, _>(|i| i.class("bi bi-house-door me-2"))
-                            .text("Dashboard")
-                    })
+                    let link = html! {
+                        a.class("nav-link").href("/admin/") {
+                            i.class("bi bi-house-door me-2")
+                            "Dashboard"
+                        }
+                    };
+                    li.class("nav-item").raw(link.render())
                 })
                 .child::<Li, _>(|li| {
                     li.child::<Hr, _>(|hr| hr.class("my-2 mx-3 border-secondary"))
                 });
             ul.children(ctx.models.iter(), |item, li: Element<Li>| {
                 let (name, url) = item;
-                li.class("nav-item").child::<A, _>(|a| {
-                    a.class("nav-link")
-                        .attr("href", url.as_str())
-                        .child::<I, _>(|i| i.class("bi bi-table me-2"))
-                        .text(name.as_str())
-                })
+                let link = html! {
+                    a.class("nav-link").href(#url) {
+                        i.class("bi bi-table me-2")
+                        #name
+                    }
+                };
+                li.class("nav-item").raw(link.render())
             })
         })
 }
 
 fn render_topbar(nav: Element<Nav>, ctx: &AdminContext) -> Element<Nav> {
+    let toggle_btn = html! {
+        button.class("btn btn-link d-md-none")
+            .type_("button")
+            .onclick(
+                "document.querySelector('.sidebar')\
+                 .classList.toggle('show')"
+            ) {
+            i.class("bi bi-list fs-4")
+        }
+    };
+
     nav.class(
         "navbar navbar-expand-lg navbar-light \
          bg-white border-bottom",
     )
     .child::<Div, _>(|d| {
         d.class("container-fluid")
-            .child::<Button, _>(|b| {
-                b.class("btn btn-link d-md-none")
-                    .attr("type", "button")
-                    .attr(
-                        "onclick",
-                        "document.querySelector('.sidebar')\
-                         .classList.toggle('show')",
-                    )
-                    .child::<I, _>(|i| i.class("bi bi-list fs-4"))
-            })
+            .child::<Div, _>(|d| d.raw(toggle_btn.render()))
             .child::<Nav, _>(|n| render_breadcrumbs(n, &ctx.breadcrumbs))
             .child::<Div, _>(|d| render_user_menu(d.class("ms-auto"), &ctx.user_name))
     })
@@ -214,8 +224,10 @@ fn render_breadcrumbs(nav: Element<Nav>, breadcrumbs: &[(String, Option<String>)
                         .attr("aria-current", "page")
                         .text(label.as_str())
                 } else if let Some(u) = url {
-                    li.class("breadcrumb-item")
-                        .child::<A, _>(|a| a.attr("href", u.as_str()).text(label.as_str()))
+                    let link = html! {
+                        a.href(#u) { #label }
+                    };
+                    li.class("breadcrumb-item").raw(link.render())
                 } else {
                     li.class("breadcrumb-item").text(label.as_str())
                 }
@@ -234,15 +246,16 @@ fn render_messages_into(wrapper: Element<Div>, messages: &[(String, String)]) ->
             "warning" => "alert-warning",
             _ => "alert-info",
         };
+        let class = format!("alert {} alert-dismissible fade show", alert_class);
+        let dismiss = html! {
+            button.type_("button").class("btn-close")
+                .data_bs_dismiss("alert")
+        };
         w = w.child::<Div, _>(|d| {
-            d.class(format!("alert {} alert-dismissible fade show", alert_class))
+            d.class(&class)
                 .attr("role", "alert")
                 .text(msg.as_str())
-                .child::<Button, _>(|b| {
-                    b.attr("type", "button")
-                        .class("btn-close")
-                        .data("bs-dismiss", "alert")
-                })
+                .raw(dismiss.render())
         });
     }
     w
@@ -251,40 +264,51 @@ fn render_messages_into(wrapper: Element<Div>, messages: &[(String, String)]) ->
 fn render_user_menu(wrapper: Element<Div>, user_name: &Option<String>) -> Element<Div> {
     match user_name {
         Some(name) => wrapper.child::<Div, _>(|d| {
+            let toggle = html! {
+                button.class(
+                    "btn btn-link dropdown-toggle \
+                     text-decoration-none"
+                )
+                .type_("button")
+                .data_bs_toggle("dropdown") {
+                    i.class("bi bi-person-circle me-1")
+                    #name
+                }
+            };
+
             d.class("dropdown")
-                .child::<Button, _>(|b| {
-                    b.class(
-                        "btn btn-link dropdown-toggle \
-                         text-decoration-none",
-                    )
-                    .attr("type", "button")
-                    .data("bs-toggle", "dropdown")
-                    .child::<I, _>(|i| i.class("bi bi-person-circle me-1"))
-                    .text(name.as_str())
-                })
+                .raw(toggle.render())
                 .child::<Ul, _>(|ul| {
                     ul.class("dropdown-menu dropdown-menu-end")
                         .child::<Li, _>(|li| {
-                            li.child::<A, _>(|a| {
+                            let link = html! {
                                 a.class("dropdown-item")
-                                    .attr("href", "/admin/password_change/")
-                                    .text("Change Password")
-                            })
+                                    .href("/admin/password_change/") {
+                                    "Change Password"
+                                }
+                            };
+                            li.raw(link.render())
                         })
                         .child::<Li, _>(|li| li.child::<Hr, _>(|hr| hr.class("dropdown-divider")))
                         .child::<Li, _>(|li| {
-                            li.child::<A, _>(|a| {
+                            let link = html! {
                                 a.class("dropdown-item")
-                                    .attr("href", "/admin/logout/")
-                                    .text("Log out")
-                            })
+                                    .href("/admin/logout/") {
+                                    "Log out"
+                                }
+                            };
+                            li.raw(link.render())
                         })
                 })
         }),
-        None => wrapper.child::<A, _>(|a| {
-            a.class("btn btn-primary")
-                .attr("href", "/admin/login/")
-                .text("Log in")
-        }),
+        None => {
+            let login = html! {
+                a.class("btn btn-primary")
+                    .href("/admin/login/") {
+                    "Log in"
+                }
+            };
+            wrapper.raw(login.render())
+        }
     }
 }

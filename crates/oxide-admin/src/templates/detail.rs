@@ -1,7 +1,8 @@
 //! Detail/edit view template.
 
+use ironhtml::html;
 use ironhtml::typed::Element;
-use ironhtml_elements::{Button, Div, Form, Hr, Li, Span, Strong, Tbody, Ul, A, I, P};
+use ironhtml_elements::{Div, Form, Li, Tbody, Td, Th, Tr, P};
 
 /// Context for rendering a detail/edit view.
 #[derive(Debug, Clone)]
@@ -102,6 +103,12 @@ pub fn render_detail_view(ctx: &DetailViewContext) -> String {
     let inlines_html = render_inlines(&ctx.inlines);
     let delete_button = render_delete_button(&ctx.delete_url);
 
+    let actions_header = html! {
+        div.class("card-header") {
+            strong { "Actions" }
+        }
+    };
+
     Element::<Form>::new()
         .attr("method", "post")
         .attr("action", &ctx.action_url)
@@ -114,16 +121,10 @@ pub fn render_detail_view(ctx: &DetailViewContext) -> String {
                     d.class("col-lg-4").child::<Div, _>(|card| {
                         card.class("card sticky-top")
                             .attr("style", "top: 1rem;")
-                            .child::<Div, _>(|ch| {
-                                ch.class("card-header")
-                                    .child::<Strong, _>(|s| s.text("Actions"))
-                            })
+                            .raw(actions_header.render())
                             .child::<Div, _>(|cb| {
                                 cb.class("card-body").child::<Div, _>(|g| {
-                                    let g = g.class(
-                                        "d-grid \
-                                                     gap-2",
-                                    );
+                                    let g = g.class("d-grid gap-2");
                                     let g = render_action_buttons(g, &ctx.list_url);
                                     g.raw(&delete_button)
                                 })
@@ -135,34 +136,43 @@ pub fn render_detail_view(ctx: &DetailViewContext) -> String {
 }
 
 fn render_action_buttons(wrapper: Element<Div>, list_url: &str) -> Element<Div> {
+    let save_btn = html! {
+        button.type_("submit")
+            .name("_save")
+            .class("btn btn-primary") {
+            i.class("bi bi-check-lg me-1")
+            "Save"
+        }
+    };
+    let continue_btn = html! {
+        button.type_("submit")
+            .name("_continue")
+            .class("btn btn-outline-primary") {
+            i.class("bi bi-arrow-repeat me-1")
+            "Save and continue editing"
+        }
+    };
+    let add_btn = html! {
+        button.type_("submit")
+            .name("_addanother")
+            .class("btn btn-outline-secondary") {
+            i.class("bi bi-plus-lg me-1")
+            "Save and add another"
+        }
+    };
+    let cancel_link = html! {
+        a.href(#list_url)
+            .class("btn btn-outline-secondary") {
+            i.class("bi bi-x-lg me-1")
+            "Cancel"
+        }
+    };
+
     wrapper
-        .child::<Button, _>(|b| {
-            b.attr("type", "submit")
-                .attr("name", "_save")
-                .class("btn btn-primary")
-                .child::<I, _>(|i| i.class("bi bi-check-lg me-1"))
-                .text("Save")
-        })
-        .child::<Button, _>(|b| {
-            b.attr("type", "submit")
-                .attr("name", "_continue")
-                .class("btn btn-outline-primary")
-                .child::<I, _>(|i| i.class("bi bi-arrow-repeat me-1"))
-                .text("Save and continue editing")
-        })
-        .child::<Button, _>(|b| {
-            b.attr("type", "submit")
-                .attr("name", "_addanother")
-                .class("btn btn-outline-secondary")
-                .child::<I, _>(|i| i.class("bi bi-plus-lg me-1"))
-                .text("Save and add another")
-        })
-        .child::<A, _>(|a| {
-            a.attr("href", list_url)
-                .class("btn btn-outline-secondary")
-                .child::<I, _>(|i| i.class("bi bi-x-lg me-1"))
-                .text("Cancel")
-        })
+        .raw(save_btn.render())
+        .raw(continue_btn.render())
+        .raw(add_btn.render())
+        .raw(cancel_link.render())
 }
 
 fn render_errors(errors: &[String]) -> String {
@@ -170,11 +180,15 @@ fn render_errors(errors: &[String]) -> String {
         return String::new();
     }
 
+    let heading = html! {
+        strong { "Please correct the errors below:" }
+    };
+
     Element::<Div>::new()
         .class("alert alert-danger")
         .attr("role", "alert")
-        .child::<Strong, _>(|s| s.text("Please correct the errors below:"))
-        .child::<Ul, _>(|ul| {
+        .raw(heading.render())
+        .child::<ironhtml_elements::Ul, _>(|ul| {
             ul.class("mb-0 mt-2")
                 .children(errors.iter(), |e, li: Element<Li>| li.text(e.as_str()))
         })
@@ -189,7 +203,7 @@ fn render_fieldsets(fieldsets: &[Fieldset], form_html: &str) -> String {
             .render();
     }
 
-    let mut html = String::new();
+    let mut html_out = String::new();
     for fieldset in fieldsets {
         let is_collapsed = fieldset.classes.contains(&"collapse".to_string());
         let collapse_id = fieldset
@@ -204,6 +218,18 @@ fn render_fieldsets(fieldsets: &[Fieldset], form_html: &str) -> String {
         let el = if is_collapsed {
             let cid = collapse_id.clone();
             let target = format!("#{collapse_id}");
+            let name_text = fieldset.name.as_deref().unwrap_or("");
+            let header_span = html! {
+                span { #name_text }
+            };
+            let collapse_btn = html! {
+                button.class("btn btn-link btn-sm")
+                    .type_("button")
+                    .data_bs_toggle("collapse")
+                    .data_bs_target(#target) {
+                    i.class("bi bi-chevron-down")
+                }
+            };
             Element::<Div>::new()
                 .class("card mb-4")
                 .child::<Div, _>(|d| {
@@ -212,14 +238,8 @@ fn render_fieldsets(fieldsets: &[Fieldset], form_html: &str) -> String {
                          justify-content-between \
                          align-items-center",
                     )
-                    .child::<Span, _>(|s| s.text(fieldset.name.as_deref().unwrap_or("")))
-                    .child::<Button, _>(|b| {
-                        b.class("btn btn-link btn-sm")
-                            .attr("type", "button")
-                            .data("bs-toggle", "collapse")
-                            .data("bs-target", &target)
-                            .child::<I, _>(|i| i.class("bi bi-chevron-down"))
-                    })
+                    .raw(header_span.render())
+                    .raw(collapse_btn.render())
                 })
                 .child::<Div, _>(|d| {
                     d.id(&cid).class("collapse").child::<Div, _>(|d| {
@@ -251,36 +271,41 @@ fn render_fieldsets(fieldsets: &[Fieldset], form_html: &str) -> String {
                     d.raw(&fields_html)
                 })
         };
-        el.render_to(&mut html);
+        el.render_to(&mut html_out);
     }
-    html
+    html_out
 }
 
 fn render_inlines(inlines: &[InlineFormset]) -> String {
-    use ironhtml_elements::{Table, Tbody, Td, Th, Thead, Tr};
+    use ironhtml_elements::{Table, Tbody, Thead};
 
-    let mut html = String::new();
+    let mut html_out = String::new();
     for inline in inlines {
+        let verbose_name = &inline.verbose_name;
+        let header = html! {
+            div.class(
+                "card-header d-flex \
+                 justify-content-between \
+                 align-items-center"
+            ) {
+                span {
+                    strong { #verbose_name }
+                }
+                button.type_("button")
+                    .class(
+                        "btn btn-sm \
+                         btn-outline-primary \
+                         add-inline-row"
+                    ) {
+                    i.class("bi bi-plus me-1")
+                    "Add another"
+                }
+            }
+        };
+
         let el = Element::<Div>::new()
             .class("card mb-4")
-            .child::<Div, _>(|d| {
-                d.class(
-                    "card-header d-flex \
-                     justify-content-between \
-                     align-items-center",
-                )
-                .child::<Span, _>(|s| s.child::<Strong, _>(|st| st.text(&inline.verbose_name)))
-                .child::<Button, _>(|b| {
-                    b.attr("type", "button")
-                        .class(
-                            "btn btn-sm \
-                             btn-outline-primary \
-                             add-inline-row",
-                        )
-                        .child::<I, _>(|i| i.class("bi bi-plus me-1"))
-                        .text("Add another")
-                })
-            })
+            .raw(header.render())
             .child::<Div, _>(|d| {
                 d.class("card-body p-0").child::<Div, _>(|d| {
                     d.class("table-responsive").child::<Table, _>(|t| {
@@ -313,32 +338,30 @@ fn render_inlines(inlines: &[InlineFormset]) -> String {
                     })
                 })
             });
-        el.render_to(&mut html);
+        el.render_to(&mut html_out);
     }
-    html
+    html_out
 }
 
 fn render_empty_rows(mut tbody: Element<Tbody>, inline: &InlineFormset) -> Element<Tbody> {
-    use ironhtml_elements::{Td, Tr};
-
     for i in 0..inline.extra {
         let idx = i.to_string();
+        let remove_btn = html! {
+            button.type_("button")
+                .class(
+                    "btn btn-sm \
+                     btn-outline-danger \
+                     remove-inline-row"
+                ) {
+                i.class("bi bi-x")
+            }
+        };
+        let remove_html = remove_btn.render();
         tbody = tbody.child::<Tr, _>(|tr: Element<Tr>| {
             tr.data("inline-row", "__prefix__")
                 .data("inline-index", &idx)
                 .child::<Td, _>(|td: Element<Td>| td.raw(&inline.empty_form))
-                .child::<Td, _>(|td: Element<Td>| {
-                    td.class("text-center")
-                        .child::<Button, _>(|b: Element<Button>| {
-                            b.attr("type", "button")
-                                .class(
-                                    "btn btn-sm \
-                                         btn-outline-danger \
-                                         remove-inline-row",
-                                )
-                                .child::<I, _>(|i: Element<I>| i.class("bi bi-x"))
-                        })
-                })
+                .child::<Td, _>(|td: Element<Td>| td.class("text-center").raw(&remove_html))
         });
     }
     tbody
@@ -347,15 +370,18 @@ fn render_empty_rows(mut tbody: Element<Tbody>, inline: &InlineFormset) -> Eleme
 fn render_delete_button(delete_url: &Option<String>) -> String {
     match delete_url {
         Some(url) => {
-            let mut html = String::new();
-            Element::<Hr>::new().render_to(&mut html);
-            Element::<A>::new()
-                .attr("href", url.as_str())
-                .class("btn btn-outline-danger w-100")
-                .child::<I, _>(|i| i.class("bi bi-trash me-1"))
-                .text("Delete")
-                .render_to(&mut html);
-            html
+            let mut out = html! { hr }.render();
+            let link = html! {
+                a.href(#url)
+                    .class(
+                        "btn btn-outline-danger w-100"
+                    ) {
+                    i.class("bi bi-trash me-1")
+                    "Delete"
+                }
+            };
+            link.render_to(&mut out);
+            out
         }
         None => String::new(),
     }

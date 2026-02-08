@@ -10,89 +10,46 @@
 //!
 //! ## Quick Start
 //!
-//! ```ignore
-//! use oxide_auth::{User, DatabaseBackend, create_tables};
-//! use sqlx::SqlitePool;
+//! ```rust
+//! use oxide_auth::{User, hash_password, verify_password};
 //!
-//! async fn example(pool: &SqlitePool) -> oxide_auth::Result<()> {
-//!     // Create auth tables
-//!     create_tables(pool).await?;
+//! // Create a user with hashed password
+//! let user = User::create("alice", "alice@example.com", "password123")
+//!     .expect("valid user");
 //!
-//!     // Create a user
-//!     let mut user = User::create("alice", "alice@example.com", "password123")?;
-//!     user.save(pool).await?;
-//!
-//!     // Authenticate and login
-//!     let (user, session) = DatabaseBackend::login(pool, "alice", "password123").await?;
-//!
-//!     // Get user from session
-//!     let user = DatabaseBackend::get_user(pool, &session.session_key).await?;
-//!
-//!     // Logout
-//!     DatabaseBackend::logout(pool, &session.session_key).await?;
-//!
-//!     Ok(())
-//! }
+//! // Verify the password
+//! assert!(user.check_password("password123"));
+//! assert!(!user.check_password("wrongpassword"));
 //! ```
+//!
+//! For the full async workflow with database persistence, see the
+//! [`DatabaseBackend`] documentation.
 //!
 //! ## Password Hashing
 //!
 //! Passwords are hashed using Argon2id, a memory-hard hashing algorithm that
 //! is resistant to GPU and ASIC attacks.
 //!
-//! ```ignore
-//! use oxide_auth::User;
+//! ```rust
+//! use oxide_auth::{hash_password, verify_password};
 //!
-//! let user = User::create("alice", "alice@example.com", "password123")?;
-//!
-//! // Check password
-//! assert!(user.check_password("password123"));
-//! assert!(!user.check_password("wrongpassword"));
-//!
-//! // Change password
-//! user.set_password("newpassword123")?;
+//! let hash = hash_password("secret123").expect("hashing works");
+//! assert!(verify_password("secret123", &hash));
+//! assert!(!verify_password("wrong", &hash));
 //! ```
 //!
 //! ## Sessions
 //!
 //! Sessions track user authentication state across requests.
-//!
-//! ```ignore
-//! use oxide_auth::Session;
-//!
-//! // Create a session for a user
-//! let session = Session::for_user(&user);
-//! session.save(pool).await?;
-//!
-//! // Store data in session
-//! session.set("cart_items", vec![1, 2, 3]);
-//!
-//! // Retrieve data
-//! let items: Option<Vec<i32>> = session.get("cart_items");
-//! ```
+//! Use [`Session::create`] to generate a new session for a user,
+//! and persist it with `Session::save(pool).await`.
+//! See the [`Session`] and [`SessionData`] docs for the full API.
 //!
 //! ## Permissions
 //!
 //! Permissions can be assigned to users directly or through groups.
-//!
-//! ```ignore
-//! use oxide_auth::{Permission, Group, add_user_to_group, user_has_permission};
-//!
-//! // Create a permission
-//! let mut perm = Permission::new("edit_posts", "Can edit posts");
-//! perm.save(pool).await?;
-//!
-//! // Create a group and add permission
-//! let mut group = Group::new("Editors");
-//! group.save(pool).await?;
-//! group.add_permission(pool, perm.id).await?;
-//!
-//! // Add user to group
-//! add_user_to_group(pool, user.id, group.id).await?;
-//!
-//! // Check permission
-//! let can_edit = user_has_permission(pool, user.id, "edit_posts").await?;
-//! ```
+//! See [`Permission`], [`Group`], [`add_user_to_group`], and
+//! [`user_has_permission`] for the full API.
 
 pub mod backends;
 mod error;

@@ -44,7 +44,7 @@ argon2 = "0.5"
 rand = "0.8"
 regex = "1.10"
 futures = "0.3"
-ironhtml = "1.0.0"
+ironhtml = { version = "1.0.0", features = ["macros"] }
 ironhtml-elements = "1.0.0"
 
 [workspace.lints.rust]

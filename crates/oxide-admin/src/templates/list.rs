@@ -1,9 +1,9 @@
 //! List view template.
 
+use ironhtml::html;
 use ironhtml::typed::Element;
 use ironhtml_elements::{
-    Button, Div, Form, Input, Li, Nav, Option_ as OptEl, Select, Span, Table, Tbody, Td, Th, Thead,
-    Tr, Ul, A, I,
+    Div, Form, Li, Nav, Option_ as OptEl, Select, Table, Tbody, Td, Th, Thead, Tr, Ul, A,
 };
 
 /// Context for rendering a list view.
@@ -96,6 +96,25 @@ pub fn render_list_view(ctx: &ListViewContext) -> String {
     let content_class = if has_filters { "col-md-9" } else { "col-12" };
 
     let total_str = ctx.total_items.to_string();
+    let verbose = &ctx.model_verbose_name;
+    let model_name = &ctx.model_name;
+    let add_url = &ctx.add_url;
+
+    let add_link = html! {
+        a.class("btn btn-primary").href(#add_url) {
+            i.class("bi bi-plus-lg me-1")
+            "Add "
+            #model_name
+        }
+    };
+
+    let header_span = html! {
+        span.class("fw-semibold") {
+            #total_str
+            " "
+            #verbose
+        }
+    };
 
     Element::<Div>::new()
         .child::<Div, _>(|d| {
@@ -104,13 +123,7 @@ pub fn render_list_view(ctx: &ListViewContext) -> String {
                  align-items-center mb-3",
             )
             .child::<Div, _>(|d| d.class("d-flex gap-2").raw(&search_bar))
-            .child::<A, _>(|a| {
-                a.attr("href", &ctx.add_url)
-                    .class("btn btn-primary")
-                    .child::<I, _>(|i| i.class("bi bi-plus-lg me-1"))
-                    .text("Add ")
-                    .text(&ctx.model_name)
-            })
+            .raw(add_link.render())
         })
         .child::<Div, _>(|row| {
             let row = row.class("row");
@@ -128,12 +141,7 @@ pub fn render_list_view(ctx: &ListViewContext) -> String {
                                  justify-content-between \
                                  align-items-center",
                             )
-                            .child::<Span, _>(|s| {
-                                s.class("fw-semibold")
-                                    .text(&total_str)
-                                    .text(" ")
-                                    .text(&ctx.model_verbose_name)
-                            })
+                            .raw(header_span.render())
                             .raw(&actions_bar)
                         })
                         .child::<Div, _>(|cb| cb.class("card-body p-0").raw(&table))
@@ -151,25 +159,22 @@ fn render_search_bar(ctx: &ListViewContext) -> String {
 
     let value = ctx.search_query.as_deref().unwrap_or("");
 
-    Element::<Form>::new()
-        .attr("method", "get")
-        .class("d-flex")
-        .child::<Div, _>(|d| {
-            d.class("input-group")
-                .child::<Input, _>(|i| {
-                    i.attr("type", "text")
-                        .attr("name", "q")
-                        .class("form-control")
-                        .attr("placeholder", "Search...")
-                        .attr("value", value)
-                })
-                .child::<Button, _>(|b| {
-                    b.class("btn btn-outline-secondary")
-                        .attr("type", "submit")
-                        .child::<I, _>(|i| i.class("bi bi-search"))
-                })
-        })
-        .render()
+    html! {
+        form.method("get").class("d-flex") {
+            div.class("input-group") {
+                input.type_("text")
+                    .name("q")
+                    .class("form-control")
+                    .placeholder("Search...")
+                    .value(#value)
+                button.class("btn btn-outline-secondary")
+                    .type_("submit") {
+                    i.class("bi bi-search")
+                }
+            }
+        }
+    }
+    .render()
 }
 
 fn render_filters(filters: &[ListFilter], active: &[(String, String)]) -> String {
@@ -177,7 +182,7 @@ fn render_filters(filters: &[ListFilter], active: &[(String, String)]) -> String
         return String::new();
     }
 
-    let mut html = String::new();
+    let mut out = String::new();
     for filter in filters {
         let active_value = active
             .iter()
@@ -190,13 +195,17 @@ fn render_filters(filters: &[ListFilter], active: &[(String, String)]) -> String
             "list-group-item list-group-item-action"
         };
 
+        let all_link = html! {
+            a.href("?").class(#all_class) { "All" }
+        };
+
         let el = Element::<Div>::new()
             .class("card mb-3")
             .child::<Div, _>(|d| d.class("card-header").text(&filter.label))
             .child::<Div, _>(|d| {
                 let d = d
                     .class("list-group list-group-flush")
-                    .child::<A, _>(|a| a.attr("href", "?").class(all_class).text("All"));
+                    .raw(all_link.render());
                 d.children(filter.options.iter(), |opt, a: Element<A>| {
                     let (value, label) = opt;
                     let is_active = active_value == Some(value.as_str());
@@ -211,15 +220,22 @@ fn render_filters(filters: &[ListFilter], active: &[(String, String)]) -> String
                     a.attr("href", &href).class(class).text(label.as_str())
                 })
             });
-        el.render_to(&mut html);
+        el.render_to(&mut out);
     }
-    html
+    out
 }
 
 fn render_actions(actions: &[(String, String)]) -> String {
     if actions.is_empty() {
         return String::new();
     }
+
+    let go_btn = html! {
+        button.type_("submit")
+            .class("btn btn-sm btn-outline-secondary") {
+            "Go"
+        }
+    };
 
     Element::<Form>::new()
         .attr("method", "post")
@@ -236,20 +252,18 @@ fn render_actions(actions: &[(String, String)]) -> String {
                 o.attr("value", value.as_str()).text(label.as_str())
             })
         })
-        .child::<Button, _>(|b| {
-            b.attr("type", "submit")
-                .class("btn btn-sm btn-outline-secondary")
-                .text("Go")
-        })
+        .child::<Div, _>(|d| d.raw(go_btn.render()))
         .render()
 }
 
 fn render_table(ctx: &ListViewContext) -> String {
     if ctx.rows.is_empty() {
-        return Element::<Div>::new()
-            .class("text-center text-muted py-5")
-            .text("No items found.")
-            .render();
+        return html! {
+            div.class("text-center text-muted py-5") {
+                "No items found."
+            }
+        }
+        .render();
     }
 
     Element::<Div>::new()
@@ -258,15 +272,14 @@ fn render_table(ctx: &ListViewContext) -> String {
             t.class("table table-striped table-hover mb-0")
                 .child::<Thead, _>(|thead| {
                     thead.class("table-light").child::<Tr, _>(|tr| {
+                        let checkbox = html! {
+                            input.type_("checkbox")
+                                .class("form-check-input select-all")
+                        };
                         let tr = tr.child::<Th, _>(|th| {
                             th.class("text-center")
                                 .attr("style", "width: 40px;")
-                                .child::<Input, _>(|i| {
-                                    i.attr("type", "checkbox").class(
-                                        "form-check-input \
-                                             select-all",
-                                    )
-                                })
+                                .raw(checkbox.render())
                         });
                         let tr = tr.children(ctx.columns.iter(), |col, th: Element<Th>| {
                             th.text(col.as_str())
@@ -284,62 +297,74 @@ fn render_table(ctx: &ListViewContext) -> String {
 }
 
 fn render_table_row(tr: Element<Tr>, row: &ListRow) -> Element<Tr> {
-    let tr = tr.child::<Td, _>(|td| {
-        td.class("text-center").child::<Input, _>(|i| {
-            i.attr("type", "checkbox")
-                .class("form-check-input row-select")
-                .attr("name", "selected")
-                .attr("value", &row.pk)
-        })
-    });
+    let checkbox = html! {
+        input.type_("checkbox")
+            .class("form-check-input row-select")
+            .name("selected")
+            .value(#&row.pk)
+    };
+    let tr = tr.child::<Td, _>(|td| td.class("text-center").raw(checkbox.render()));
     let tr = tr.children(
         row.cells.iter().enumerate(),
         |(i, cell), td: Element<Td>| {
             if i == 0 {
-                td.child::<A, _>(|a| a.attr("href", &row.edit_url).text(cell.as_str()))
+                let edit_url = &row.edit_url;
+                let link = html! {
+                    a.href(#edit_url) { #cell }
+                };
+                td.raw(link.render())
             } else {
                 td.text(cell.as_str())
             }
         },
     );
+    let edit_url = &row.edit_url;
+    let delete_url = &row.delete_url;
+
+    let edit_btn = html! {
+        a.href(#edit_url)
+            .class("btn btn-sm btn-outline-primary me-1") {
+            i.class("bi bi-pencil")
+        }
+    };
+
+    let delete_form = html! {
+        form.action(#delete_url)
+            .method("post")
+            .class("d-inline delete-confirm") {
+            button.type_("submit")
+                .class("btn btn-sm btn-outline-danger") {
+                i.class("bi bi-trash")
+            }
+        }
+    };
+
     tr.child::<Td, _>(|td| {
         td.class("table-actions")
-            .child::<A, _>(|a| {
-                a.attr("href", &row.edit_url)
-                    .class("btn btn-sm btn-outline-primary me-1")
-                    .child::<I, _>(|i| i.class("bi bi-pencil"))
-            })
-            .child::<Form, _>(|f| {
-                f.attr("action", &row.delete_url)
-                    .attr("method", "post")
-                    .class("d-inline delete-confirm")
-                    .child::<Button, _>(|b| {
-                        b.attr("type", "submit")
-                            .class(
-                                "btn btn-sm \
-                                 btn-outline-danger",
-                            )
-                            .child::<I, _>(|i| i.class("bi bi-trash"))
-                    })
-            })
+            .raw(edit_btn.render())
+            .raw(delete_form.render())
     })
 }
 
 fn render_pagination(ctx: &ListViewContext) -> String {
     if ctx.total_pages <= 1 {
         let total_str = ctx.total_items.to_string();
-        return Element::<Div>::new()
-            .class(
-                "d-flex justify-content-between \
-                 align-items-center",
-            )
-            .child::<Span, _>(|s| {
-                s.class("text-muted")
-                    .text("Showing ")
-                    .text(&total_str)
-                    .text(" items")
-            })
-            .render();
+        let showing = html! {
+            span.class("text-muted") {
+                "Showing "
+                #total_str
+                " items"
+            }
+        };
+        let showing_html = showing.render();
+        return html! {
+            div.class(
+                "d-flex justify-content-between align-items-center"
+            ) {
+                #showing_html
+            }
+        }
+        .render();
     }
 
     let start = (ctx.page - 1) * ctx.per_page + 1;
@@ -347,12 +372,16 @@ fn render_pagination(ctx: &ListViewContext) -> String {
 
     let showing_text = format!("Showing {}-{} of {} items", start, end, ctx.total_items);
 
+    let showing_span = html! {
+        span.class("text-muted") { #showing_text }
+    };
+
     Element::<Div>::new()
         .class(
             "d-flex justify-content-between \
              align-items-center",
         )
-        .child::<Span, _>(|s| s.class("text-muted").text(&showing_text))
+        .raw(showing_span.render())
         .child::<Nav, _>(|nav| {
             nav.child::<Ul, _>(|ul| {
                 let mut ul = ul.class("pagination pagination-sm mb-0");
@@ -360,57 +389,65 @@ fn render_pagination(ctx: &ListViewContext) -> String {
                 // Previous button
                 if ctx.page > 1 {
                     let prev_href = format!("?page={}", ctx.page - 1);
-                    ul = ul.child::<Li, _>(|li| {
-                        li.class("page-item").child::<A, _>(|a| {
-                            a.class("page-link").attr("href", &prev_href).raw("&laquo;")
-                        })
-                    });
+                    let link = html! {
+                        a.class("page-link").href(#prev_href) {
+                            "&laquo;"
+                        }
+                    };
+                    ul = ul.child::<Li, _>(|li| li.class("page-item").raw(link.render()));
                 } else {
-                    ul = ul.child::<Li, _>(|li| {
-                        li.class("page-item disabled")
-                            .child::<Span, _>(|s| s.class("page-link").raw("&laquo;"))
-                    });
+                    let disabled = html! {
+                        span.class("page-link") { "&laquo;" }
+                    };
+                    ul = ul
+                        .child::<Li, _>(|li| li.class("page-item disabled").raw(disabled.render()));
                 }
 
                 // Page numbers
                 for p in 1..=ctx.total_pages {
                     let p_str = p.to_string();
                     if p == ctx.page {
+                        let active_span = html! {
+                            span.class("page-link") { #p_str }
+                        };
                         ul = ul.child::<Li, _>(|li| {
-                            li.class("page-item active")
-                                .child::<Span, _>(|s| s.class("page-link").text(&p_str))
+                            li.class("page-item active").raw(active_span.render())
                         });
                     } else if (p as isize - ctx.page as isize).abs() <= 2
                         || p == 1
                         || p == ctx.total_pages
                     {
                         let href = format!("?page={}", p);
-                        ul = ul.child::<Li, _>(|li| {
-                            li.class("page-item").child::<A, _>(|a| {
-                                a.class("page-link").attr("href", &href).text(&p_str)
-                            })
-                        });
+                        let link = html! {
+                            a.class("page-link").href(#href) {
+                                #p_str
+                            }
+                        };
+                        ul = ul.child::<Li, _>(|li| li.class("page-item").raw(link.render()));
                     } else if (p as isize - ctx.page as isize).abs() == 3 {
-                        ul = ul.child::<Li, _>(|li| {
-                            li.class("page-item disabled")
-                                .child::<Span, _>(|s| s.class("page-link").text("..."))
-                        });
+                        let dots = html! {
+                            span.class("page-link") { "..." }
+                        };
+                        ul = ul
+                            .child::<Li, _>(|li| li.class("page-item disabled").raw(dots.render()));
                     }
                 }
 
                 // Next button
                 if ctx.page < ctx.total_pages {
                     let next_href = format!("?page={}", ctx.page + 1);
-                    ul = ul.child::<Li, _>(|li| {
-                        li.class("page-item").child::<A, _>(|a| {
-                            a.class("page-link").attr("href", &next_href).raw("&raquo;")
-                        })
-                    });
+                    let link = html! {
+                        a.class("page-link").href(#next_href) {
+                            "&raquo;"
+                        }
+                    };
+                    ul = ul.child::<Li, _>(|li| li.class("page-item").raw(link.render()));
                 } else {
-                    ul = ul.child::<Li, _>(|li| {
-                        li.class("page-item disabled")
-                            .child::<Span, _>(|s| s.class("page-link").raw("&raquo;"))
-                    });
+                    let disabled = html! {
+                        span.class("page-link") { "&raquo;" }
+                    };
+                    ul = ul
+                        .child::<Li, _>(|li| li.class("page-item disabled").raw(disabled.render()));
                 }
 
                 ul

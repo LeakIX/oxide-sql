@@ -2,8 +2,9 @@
 
 use std::collections::HashMap;
 
+use ironhtml::html;
 use ironhtml::typed::Element;
-use ironhtml_elements::{Button, Div, Form as FormEl, Label, Li, Ul};
+use ironhtml_elements::{Div, Li, Ul};
 
 use crate::error::{Result, ValidationErrors};
 use crate::validation::Validator;
@@ -154,11 +155,14 @@ pub fn render_bootstrap_field(
     let actual_value = value.or(field.initial.as_deref());
     let widget_html = field.widget.render(&field.name, actual_value, &attrs);
 
+    let label_el = html! {
+        label.for_(#id).class("form-label") { #label_text }
+    };
+
     let help_text = field.help_text.clone();
 
-    Element::<Div>::new()
-        .class("mb-3")
-        .child::<Label, _>(|l| l.attr("for", &id).class("form-label").text(&label_text))
+    html! { div.class("mb-3") }
+        .raw(label_el.render())
         .raw(&widget_html)
         .children(errors, |error, div: Element<Div>| {
             div.class("invalid-feedback").text(error)
@@ -180,9 +184,9 @@ pub fn render_bootstrap_form(
     action: &str,
     method: &str,
 ) -> String {
-    let mut form = Element::<FormEl>::new()
-        .attr("action", action)
-        .attr("method", method);
+    let mut form = html! {
+        form.action(#action).method(#method)
+    };
 
     // Non-field errors
     if let Some(form_errors) = errors.get("__all__") {
@@ -205,10 +209,13 @@ pub fn render_bootstrap_form(
     }
 
     // Submit button
-    form = form.child::<Button, _>(|b| {
-        b.attr("type", "submit")
-            .class("btn btn-primary")
-            .text("Submit")
+    form = form.child::<Div, _>(|d| {
+        let btn = html! {
+            button.type_("submit").class("btn btn-primary") {
+                "Submit"
+            }
+        };
+        d.raw(btn.render())
     });
 
     form.render()

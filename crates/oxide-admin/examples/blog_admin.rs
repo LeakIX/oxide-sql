@@ -36,10 +36,11 @@ use oxide_router::{Method, Request, Response, Router};
 use oxide_sql_core::builder::{col, Delete, Insert, Select, Update};
 use oxide_sql_derive::Table;
 
+use ironhtml::html;
 use ironhtml::typed::{Document, Element};
 use ironhtml_elements::{
-    Body, Button, Div, Form, Head, Hr, Html, Input, Label, Li, Main, Meta, Nav, Option_, Script,
-    Select as SelectEl, Span, Strong, Td, Textarea, Th, Title, Tr, Ul, A, H1, H4, H5, P,
+    Body, Div, Form, Head, Html, Li, Main, Meta, Nav, Option_, Script, Select as SelectEl, Td, Th,
+    Title, Tr, Ul,
 };
 
 // ============================================================================
@@ -508,7 +509,7 @@ async fn add_post_handler(req: Request, state: AppState) -> Response {
         });
 
         return Response::redirect("/admin/posts/")
-            .header("X-Message", format!("Post created successfully"));
+            .header("X-Message", "Post created successfully".to_string());
     }
 
     Response::html(render_post_form(None, None))
@@ -594,9 +595,7 @@ async fn action_posts_handler(req: Request, state: AppState) -> Response {
     let selected: Vec<i64> = body_str
         .split('&')
         .filter_map(|pair| {
-            let mut parts = pair.splitn(2, '=');
-            let key = parts.next()?;
-            let val = parts.next()?;
+            let (key, val) = pair.split_once('=')?;
             if key == "selected" {
                 val.parse().ok()
             } else {
@@ -726,42 +725,44 @@ async fn delete_comment_handler(req: Request, state: AppState) -> Response {
     let store = state.read().await;
     match store.comments.iter().find(|c| c.id == pk) {
         Some(c) => {
+            let msg = format!("You are about to delete comment #{} by ", c.id);
+            let author_ref = &c.author;
+            let heading = html! {
+                h1.class("text-2xl font-semibold text-gray-900 mb-6") {
+                    "Delete Comment"
+                }
+            };
+            let warning = html! {
+                div.class("bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6") {
+                    h4.class("text-lg font-semibold text-amber-800 mb-2") {
+                        "Are you sure?"
+                    }
+                    p.class("text-amber-700 mb-2") {
+                        #msg
+                        strong { #author_ref }
+                    }
+                    p.class("text-amber-700") {
+                        "This action cannot be undone."
+                    }
+                }
+            };
+            let confirm_btn = html! {
+                button.type_("submit").class("px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors duration-200") { "Confirm Delete" }
+            };
+            let cancel_link = html! {
+                a.href("/admin/comments/").class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200") { "Cancel" }
+            };
+            let confirm_btn_r = confirm_btn.render();
+            let cancel_link_r = cancel_link.render();
             let content = Element::<Div>::new()
-                .child::<H1, _>(|h| {
-                    h.class("text-2xl font-semibold text-gray-900 mb-6")
-                        .text("Delete Comment")
-                })
+                .raw(heading.render())
                 .child::<Div, _>(|d| {
                     d.class("delete-confirmation max-w-2xl")
-                        .child::<Div, _>(|d| {
-                            d.class("bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6")
-                                .child::<H4, _>(|h| {
-                                    h.class("text-lg font-semibold text-amber-800 mb-2")
-                                        .text("Are you sure?")
-                                })
-                                .child::<P, _>(|p| {
-                                    p.class("text-amber-700 mb-2")
-                                        .text(format!("You are about to delete comment #{} by ", c.id))
-                                        .child::<Strong, _>(|s| s.text(&c.author))
-                                })
-                                .child::<P, _>(|p| {
-                                    p.class("text-amber-700")
-                                        .text("This action cannot be undone.")
-                                })
-                        })
+                        .raw(warning.render())
                         .child::<Form, _>(|f| {
                             f.attr("method", "POST")
                                 .class("flex gap-4")
-                                .child::<Button, _>(|b| {
-                                    b.attr("type", "submit")
-                                        .class("px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors duration-200")
-                                        .text("Confirm Delete")
-                                })
-                                .child::<A, _>(|a| {
-                                    a.attr("href", "/admin/comments/")
-                                        .class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200")
-                                        .text("Cancel")
-                                })
+                                .child::<Div, _>(|d| d.raw(&confirm_btn_r).raw(&cancel_link_r))
                         })
                 })
                 .render();
@@ -783,9 +784,7 @@ async fn action_comments_handler(req: Request, state: AppState) -> Response {
     let selected: Vec<i64> = body_str
         .split('&')
         .filter_map(|pair| {
-            let mut parts = pair.splitn(2, '=');
-            let key = parts.next()?;
-            let val = parts.next()?;
+            let (key, val) = pair.split_once('=')?;
             if key == "selected" {
                 val.parse().ok()
             } else {
@@ -900,42 +899,43 @@ async fn delete_tag_handler(req: Request, state: AppState) -> Response {
     let store = state.read().await;
     match store.tags.iter().find(|t| t.id == pk) {
         Some(t) => {
+            let name_ref = &t.name;
+            let heading = html! {
+                h1.class("text-2xl font-semibold text-gray-900 mb-6") {
+                    "Delete Tag"
+                }
+            };
+            let warning = html! {
+                div.class("bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6") {
+                    h4.class("text-lg font-semibold text-amber-800 mb-2") {
+                        "Are you sure?"
+                    }
+                    p.class("text-amber-700 mb-2") {
+                        "You are about to delete the tag: "
+                        strong { #name_ref }
+                    }
+                    p.class("text-amber-700") {
+                        "This action cannot be undone."
+                    }
+                }
+            };
+            let confirm_btn = html! {
+                button.type_("submit").class("px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors duration-200") { "Confirm Delete" }
+            };
+            let cancel_link = html! {
+                a.href("/admin/tags/").class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200") { "Cancel" }
+            };
+            let confirm_btn_r = confirm_btn.render();
+            let cancel_link_r = cancel_link.render();
             let content = Element::<Div>::new()
-                .child::<H1, _>(|h| {
-                    h.class("text-2xl font-semibold text-gray-900 mb-6")
-                        .text("Delete Tag")
-                })
+                .raw(heading.render())
                 .child::<Div, _>(|d| {
                     d.class("delete-confirmation max-w-2xl")
-                        .child::<Div, _>(|d| {
-                            d.class("bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6")
-                                .child::<H4, _>(|h| {
-                                    h.class("text-lg font-semibold text-amber-800 mb-2")
-                                        .text("Are you sure?")
-                                })
-                                .child::<P, _>(|p| {
-                                    p.class("text-amber-700 mb-2")
-                                        .text("You are about to delete the tag: ")
-                                        .child::<Strong, _>(|s| s.text(&t.name))
-                                })
-                                .child::<P, _>(|p| {
-                                    p.class("text-amber-700")
-                                        .text("This action cannot be undone.")
-                                })
-                        })
+                        .raw(warning.render())
                         .child::<Form, _>(|f| {
                             f.attr("method", "POST")
                                 .class("flex gap-4")
-                                .child::<Button, _>(|b| {
-                                    b.attr("type", "submit")
-                                        .class("px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors duration-200")
-                                        .text("Confirm Delete")
-                                })
-                                .child::<A, _>(|a| {
-                                    a.attr("href", "/admin/tags/")
-                                        .class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200")
-                                        .text("Cancel")
-                                })
+                                .child::<Div, _>(|d| d.raw(&confirm_btn_r).raw(&cancel_link_r))
                         })
                 })
                 .render();
@@ -957,9 +957,7 @@ async fn action_tags_handler(req: Request, state: AppState) -> Response {
     let selected: Vec<i64> = body_str
         .split('&')
         .filter_map(|pair| {
-            let mut parts = pair.splitn(2, '=');
-            let key = parts.next()?;
-            let val = parts.next()?;
+            let (key, val) = pair.split_once('=')?;
             if key == "selected" {
                 val.parse().ok()
             } else {
@@ -1026,131 +1024,108 @@ fn render_base(title: &str, content: &str, is_logged_in: bool) -> String {
 }
 
 fn render_sidebar() -> String {
-    let nav_link_class = "block px-4 py-2 rounded-lg hover:bg-gray-700 \
-                          hover:text-white transition-colors duration-200";
+    let nav_link_class = "block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition-colors duration-200";
+
+    let heading = html! {
+        h2.class("text-white text-lg font-semibold mb-6") { "Blog Admin" }
+    };
+    let dashboard_link = html! { a.href("/admin/").class(#nav_link_class) { "Dashboard" } };
+    let posts_link = html! { a.href("/admin/posts/").class(#nav_link_class) { "Posts" } };
+    let comments_link = html! { a.href("/admin/comments/").class(#nav_link_class) { "Comments" } };
+    let tags_link = html! { a.href("/admin/tags/").class(#nav_link_class) { "Tags" } };
+    let logout_link = html! {
+        a.href("/admin/logout").class("block px-4 py-2 rounded-lg text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors duration-200") { "Logout" }
+    };
+    let dash_r = dashboard_link.render();
+    let posts_r = posts_link.render();
+    let comments_r = comments_link.render();
+    let tags_r = tags_link.render();
+    let logout_r = logout_link.render();
+    let hr = html! { hr.class("my-6 border-gray-600") };
 
     Element::<Nav>::new()
         .class("w-64 min-h-screen bg-gray-800 text-gray-300 flex-shrink-0")
         .child::<Div, _>(|d| {
             d.class("sticky top-0 p-4")
-                .child::<ironhtml_elements::H2, _>(|h| {
-                    h.class("text-white text-lg font-semibold mb-6")
-                        .text("Blog Admin")
-                })
+                .raw(heading.render())
                 .child::<Ul, _>(|ul| {
                     ul.class("space-y-2")
-                        .child::<Li, _>(|li| {
-                            li.child::<A, _>(|a| {
-                                a.attr("href", "/admin/")
-                                    .class(nav_link_class)
-                                    .text("Dashboard")
-                            })
-                        })
-                        .child::<Li, _>(|li| {
-                            li.child::<A, _>(|a| {
-                                a.attr("href", "/admin/posts/")
-                                    .class(nav_link_class)
-                                    .text("Posts")
-                            })
-                        })
-                        .child::<Li, _>(|li| {
-                            li.child::<A, _>(|a| {
-                                a.attr("href", "/admin/comments/")
-                                    .class(nav_link_class)
-                                    .text("Comments")
-                            })
-                        })
-                        .child::<Li, _>(|li| {
-                            li.child::<A, _>(|a| {
-                                a.attr("href", "/admin/tags/")
-                                    .class(nav_link_class)
-                                    .text("Tags")
-                            })
-                        })
+                        .child::<Li, _>(|li| li.raw(&dash_r))
+                        .child::<Li, _>(|li| li.raw(&posts_r))
+                        .child::<Li, _>(|li| li.raw(&comments_r))
+                        .child::<Li, _>(|li| li.raw(&tags_r))
                 })
-                .child::<Hr, _>(|hr| hr.class("my-6 border-gray-600"))
-                .child::<Ul, _>(|ul| {
-                    ul.child::<Li, _>(|li| {
-                        li.child::<A, _>(|a| {
-                            a.attr("href", "/admin/logout")
-                                .class("block px-4 py-2 rounded-lg text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors duration-200")
-                                .text("Logout")
-                        })
-                    })
-                })
+                .raw(hr.render())
+                .child::<Ul, _>(|ul| ul.child::<Li, _>(|li| li.raw(&logout_r)))
         })
         .render()
 }
 
 fn render_login_page(error: Option<&str>) -> String {
-    let input_class = "w-full px-4 py-2 border border-gray-300 rounded-lg \
-                       focus:ring-2 focus:ring-blue-500 focus:border-blue-500 \
-                       transition-colors duration-200";
+    let input_class = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200";
     let error_html = error
         .map(|e| {
-            Element::<Div>::new()
-                .class("mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg")
-                .text(e)
-                .render()
+            (html! {
+                div.class("mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg") {
+                    #e
+                }
+            })
+            .render()
         })
         .unwrap_or_default();
+
+    let header = html! {
+        div.class("px-6 py-4 border-b border-gray-200") {
+            h4.class("text-xl font-semibold text-gray-900") { "Admin Login" }
+        }
+    };
+    let username_label = html! {
+        label.for_("username").class("block text-sm font-medium text-gray-700 mb-1") { "Username" }
+    };
+    let username_input = html! {
+        input.type_("text").id("username").name("username").required.class(#input_class)
+    };
+    let password_label = html! {
+        label.for_("password").class("block text-sm font-medium text-gray-700 mb-1") { "Password" }
+    };
+    let password_input = html! {
+        input.type_("password").id("password").name("password").required.class(#input_class)
+    };
+    let submit_btn = html! {
+        button.type_("submit").class("w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200") { "Login" }
+    };
+    let hint = html! {
+        p.class("mt-4 text-sm text-gray-500") { "Default: admin / admin123" }
+    };
+    let username_label_r = username_label.render();
+    let username_input_r = username_input.render();
+    let password_label_r = password_label.render();
+    let password_input_r = password_input.render();
+    let submit_btn_r = submit_btn.render();
 
     let content = Element::<Div>::new()
         .class("min-h-screen flex items-center justify-center")
         .child::<Div, _>(|d| {
-            d.class("w-full max-w-md")
-                .child::<Div, _>(|d| {
-                    d.class("bg-white rounded-lg shadow-sm border border-gray-200")
-                        .child::<Div, _>(|d| {
-                            d.class("px-6 py-4 border-b border-gray-200")
-                                .child::<H4, _>(|h| {
-                                    h.class("text-xl font-semibold text-gray-900")
-                                        .text("Admin Login")
-                                })
-                        })
-                        .child::<Div, _>(|d| {
-                            d.class("p-6")
-                                .raw(&error_html)
-                                .child::<Form, _>(|f| {
-                                    f.attr("method", "POST").class("space-y-4")
-                                        .child::<Div, _>(|d| {
-                                            d.child::<Label, _>(|l| {
-                                                l.attr("for", "username")
-                                                    .class("block text-sm font-medium text-gray-700 mb-1")
-                                                    .text("Username")
-                                            })
-                                            .child::<Input, _>(|i| {
-                                                i.attr("type", "text").id("username")
-                                                    .attr("name", "username")
-                                                    .bool_attr("required")
-                                                    .class(input_class)
-                                            })
-                                        })
-                                        .child::<Div, _>(|d| {
-                                            d.child::<Label, _>(|l| {
-                                                l.attr("for", "password")
-                                                    .class("block text-sm font-medium text-gray-700 mb-1")
-                                                    .text("Password")
-                                            })
-                                            .child::<Input, _>(|i| {
-                                                i.attr("type", "password").id("password")
-                                                    .attr("name", "password")
-                                                    .bool_attr("required")
-                                                    .class(input_class)
-                                            })
-                                        })
-                                        .child::<Button, _>(|b| {
-                                            b.attr("type", "submit")
-                                                .class("w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200")
-                                                .text("Login")
-                                        })
-                                })
-                                .child::<P, _>(|p| {
-                                    p.class("mt-4 text-sm text-gray-500")
-                                        .text("Default: admin / admin123")
-                                })
-                        })
-                })
+            d.class("w-full max-w-md").child::<Div, _>(|d| {
+                d.class("bg-white rounded-lg shadow-sm border border-gray-200")
+                    .raw(header.render())
+                    .child::<Div, _>(|d| {
+                        d.class("p-6")
+                            .raw(&error_html)
+                            .child::<Form, _>(|f| {
+                                f.attr("method", "POST")
+                                    .class("space-y-4")
+                                    .child::<Div, _>(|d| {
+                                        d.raw(&username_label_r).raw(&username_input_r)
+                                    })
+                                    .child::<Div, _>(|d| {
+                                        d.raw(&password_label_r).raw(&password_input_r)
+                                    })
+                                    .child::<Div, _>(|d| d.raw(&submit_btn_r))
+                            })
+                            .raw(hint.render())
+                    })
+            })
         })
         .render();
 
@@ -1166,22 +1141,29 @@ fn render_dashboard_card(
     data_model: &str,
 ) -> String {
     let count_str = count.to_string();
+    let card_class = format!("{} text-white rounded-lg shadow-sm p-6", bg);
     let btn_class = format!(
-        "inline-block mt-4 px-4 py-2 bg-white {} text-sm \
-         font-medium rounded-lg hover:bg-gray-100 \
-         transition-colors duration-200",
+        "inline-block mt-4 px-4 py-2 bg-white {} text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors duration-200",
         text_color
     );
-    Element::<Div>::new()
-        .class(format!("{} text-white rounded-lg shadow-sm p-6", bg))
-        .child::<H5, _>(|h| h.class("text-lg font-medium opacity-90").text(label))
-        .child::<P, _>(|p| {
-            p.class("text-4xl font-bold mt-2")
-                .data("model", data_model)
-                .child::<Span, _>(|s| s.class("count").text(&count_str))
-        })
-        .child::<A, _>(|a| a.attr("href", href).class(&btn_class).text("View all"))
-        .render()
+    let heading = html! {
+        h5.class("text-lg font-medium opacity-90") { #label }
+    };
+    let count_el = html! {
+        p.class("text-4xl font-bold mt-2").data_model(#data_model) {
+            span.class("count") { #count_str }
+        }
+    };
+    let link = html! {
+        a.href(#href).class(#btn_class) { "View all" }
+    };
+    (html! {
+        div.class(#card_class) {}
+    })
+    .raw(heading.render())
+    .raw(count_el.render())
+    .raw(link.render())
+    .render()
 }
 
 fn render_dashboard(store: &DataStore) -> String {
@@ -1211,11 +1193,11 @@ fn render_dashboard(store: &DataStore) -> String {
         "tags",
     ));
 
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 mb-6") { "Dashboard" }
+    };
     let content = Element::<Div>::new()
-        .child::<H1, _>(|h| {
-            h.class("text-2xl font-semibold text-gray-900 mb-6")
-                .text("Dashboard")
-        })
+        .raw(heading.render())
         .child::<Div, _>(|d| d.class("grid grid-cols-1 md:grid-cols-3 gap-6").raw(&cards))
         .render();
 
@@ -1248,41 +1230,44 @@ fn render_post_list(
         let id_str = p.id.to_string();
         let edit_url = format!("/admin/posts/{}/change/", p.id);
         let del_url = format!("/admin/posts/{}/delete/", p.id);
+        let checkbox = html! {
+            input.type_("checkbox").name("selected").value(#&id_str).class("rounded border-gray-300")
+        };
+        let title_ref = &p.title;
+        let title_link = html! {
+            a.href(#&edit_url).class("text-blue-600 hover:text-blue-800 font-medium") { #title_ref }
+        };
+        let badge_cls = format!("px-2 py-1 text-xs font-medium rounded-full {}", badge_class);
+        let status_ref = &p.status;
+        let badge = html! {
+            span.class(#badge_cls) { #status_ref }
+        };
+        let edit_link = html! {
+            a.href(#&edit_url).class(#edit_btn_class) { "Edit" }
+        };
+        let del_link = html! {
+            a.href(#del_url).class(#del_btn_class) { "Delete" }
+        };
+        let checkbox_r = checkbox.render();
+        let title_link_r = title_link.render();
+        let badge_r = badge.render();
+        let edit_link_r = edit_link.render();
+        let del_link_r = del_link.render();
+        let created_ref = &p.created_at;
         Element::<Tr>::new()
             .class("border-b border-gray-100 hover:bg-gray-50")
-            .child::<Td, _>(|td| {
-                td.class("px-4 py-3").child::<Input, _>(|i| {
-                    i.attr("type", "checkbox")
-                        .attr("name", "selected")
-                        .attr("value", &id_str)
-                        .class("rounded border-gray-300")
-                })
-            })
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&checkbox_r))
             .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-600").text(&id_str))
-            .child::<Td, _>(|td| {
-                td.class("px-4 py-3").child::<A, _>(|a| {
-                    a.attr("href", &edit_url)
-                        .class("text-blue-600 hover:text-blue-800 font-medium")
-                        .text(&p.title)
-                })
-            })
-            .child::<Td, _>(|td| {
-                td.class("px-4 py-3").child::<Span, _>(|s| {
-                    s.class(format!(
-                        "px-2 py-1 text-xs font-medium rounded-full {}",
-                        badge_class
-                    ))
-                    .text(&p.status)
-                })
-            })
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&title_link_r))
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&badge_r))
             .child::<Td, _>(|td| {
                 td.class("px-4 py-3 text-gray-500 text-sm")
-                    .text(&p.created_at)
+                    .text(created_ref)
             })
             .child::<Td, _>(|td| {
                 td.class("px-4 py-3 space-x-2")
-                    .child::<A, _>(|a| a.attr("href", &edit_url).class(edit_btn_class).text("Edit"))
-                    .child::<A, _>(|a| a.attr("href", &del_url).class(del_btn_class).text("Delete"))
+                    .raw(&edit_link_r)
+                    .raw(&del_link_r)
             })
             .render_to(&mut rows);
     }
@@ -1292,24 +1277,24 @@ fn render_post_list(
     let pub_selected = status_filter == Some("published");
     let draft_selected = status_filter == Some("draft");
 
+    let page_heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 page-title") { "Posts" }
+    };
+    let add_btn = html! {
+        a.href("/admin/posts/add/").class("px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200") { "+ Add Post" }
+    };
     let content = Element::<Div>::new()
         .child::<Div, _>(|d| {
             d.class("flex justify-between items-center mb-6")
-                .child::<H1, _>(|h| {
-                    h.class("text-2xl font-semibold text-gray-900 page-title").text("Posts")
-                })
-                .child::<A, _>(|a| {
-                    a.attr("href", "/admin/posts/add/")
-                        .class("px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200")
-                        .text("+ Add Post")
-                })
+                .raw(page_heading.render())
+                .raw(add_btn.render())
         })
         .child::<Div, _>(|d| {
             d.class("bg-white rounded-lg shadow-sm border border-gray-200 mb-6")
                 .child::<Div, _>(|d| {
                     d.class("p-4").child::<Form, _>(|f| {
                         f.class("flex gap-4").attr("method", "GET")
-                            .child::<Input, _>(|i| {
+                            .child::<ironhtml_elements::Input, _>(|i| {
                                 i.attr("type", "search").attr("name", "q")
                                     .class("flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500")
                                     .attr("placeholder", "Search...").attr("value", search)
@@ -1327,7 +1312,7 @@ fn render_post_list(
                                     if draft_selected { o.bool_attr("selected") } else { o }
                                 })
                             })
-                            .child::<Button, _>(|b| {
+                            .child::<ironhtml_elements::Button, _>(|b| {
                                 b.attr("type", "submit")
                                     .class("px-4 py-2 border border-blue-600 text-blue-600 font-medium rounded-lg hover:bg-blue-50 transition-colors duration-200")
                                     .text("Filter")
@@ -1357,20 +1342,23 @@ fn render_action_form_wrapper(
 ) -> String {
     // Build header cells as raw HTML (Th elements)
     let mut header_cells = String::new();
-    Element::<Th>::new()
-        .class("px-4 py-3 text-left w-10")
-        .child::<Input, _>(|i| {
-            i.attr("type", "checkbox")
-                .id("select-all")
-                .class("rounded border-gray-300")
-        })
-        .render_to(&mut header_cells);
+    let select_all_th = html! {
+        th.class("px-4 py-3 text-left w-10") {
+            input.type_("checkbox").id("select-all").class("rounded border-gray-300")
+        }
+    };
+    select_all_th.render_to(&mut header_cells);
     for (h, link) in headers.iter().zip(sort_links.iter()) {
         if let Some(href) = link {
+            let href_val = *href;
+            let h_val = *h;
+            let sort_link = html! {
+                a.href(#href_val).class("hover:text-gray-900") { #h_val }
+            };
             Element::<Th>::new()
                 .class(th_class)
                 .bool_attr("data-sortable")
-                .child::<A, _>(|a| a.attr("href", *href).class("hover:text-gray-900").text(*h))
+                .raw(sort_link.render())
                 .render_to(&mut header_cells);
         } else {
             Element::<Th>::new()
@@ -1388,44 +1376,29 @@ fn render_action_form_wrapper(
          <tbody>{rows_html}</tbody></table>"
     );
 
+    let apply_btn = html! {
+        button.type_("submit").name("apply_action").class("px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200") { "Apply" }
+    };
+    let apply_btn_r = apply_btn.render();
+
     Element::<Form>::new()
         .attr("method", "POST")
         .attr("action", action_url)
         .child::<Div, _>(|d| {
-            d.class(
-                "bg-white rounded-lg shadow-sm \
-                 border border-gray-200",
-            )
-            .child::<Div, _>(|d| {
-                d.class(
-                    "px-4 py-3 border-b border-gray-200 \
-                     flex items-center gap-4",
-                )
-                .child::<SelectEl, _>(|s| {
-                    s.attr("name", "action")
-                        .class(
-                            "px-3 py-2 border border-gray-300 \
-                             rounded-lg text-sm focus:ring-2 \
-                             focus:ring-blue-500 action-select",
-                        )
-                        .child::<Option_, _>(|o| o.attr("value", "").text("-- Select action --"))
-                        .child::<Option_, _>(|o| {
-                            o.attr("value", "delete_selected").text("Delete selected")
+            d.class("bg-white rounded-lg shadow-sm border border-gray-200")
+                .child::<Div, _>(|d| {
+                    d.class("px-4 py-3 border-b border-gray-200 flex items-center gap-4")
+                        .child::<SelectEl, _>(|s| {
+                            s.attr("name", "action")
+                                .class("px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 action-select")
+                                .child::<Option_, _>(|o| o.attr("value", "").text("-- Select action --"))
+                                .child::<Option_, _>(|o| {
+                                    o.attr("value", "delete_selected").text("Delete selected")
+                                })
                         })
+                        .raw(&apply_btn_r)
                 })
-                .child::<Button, _>(|b| {
-                    b.attr("type", "submit")
-                        .attr("name", "apply_action")
-                        .class(
-                            "px-4 py-2 border border-gray-300 \
-                             text-gray-700 text-sm font-medium \
-                             rounded-lg hover:bg-gray-50 \
-                             transition-colors duration-200",
-                        )
-                        .text("Apply")
-                })
-            })
-            .child::<Div, _>(|d| d.class("overflow-x-auto").raw(&table_html))
+                .child::<Div, _>(|d| d.class("overflow-x-auto").raw(&table_html))
         })
         .render()
 }
@@ -1443,14 +1416,14 @@ fn render_pagination_nav(page: usize, total_pages: usize) -> String {
         };
         let href = format!("?page={}", i);
         let i_str = i.to_string();
-        Element::<A>::new()
-            .attr("href", &href)
-            .class(format!(
-                "px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg {}",
-                active_class
-            ))
-            .text(&i_str)
-            .render_to(&mut links);
+        let link_class = format!(
+            "px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg {}",
+            active_class
+        );
+        let link = html! {
+            a.href(#href).class(#link_class) { #i_str }
+        };
+        link.render_to(&mut links);
     }
     Element::<Nav>::new()
         .class("mt-6 flex justify-center")
@@ -1478,91 +1451,80 @@ fn render_post_form(post: Option<&Post>, error: Option<&str>) -> String {
     let error_html = render_error_alert(error);
     let delete_btn = post.map(|p| {
         let href = format!("/admin/posts/{}/delete/", p.id);
-        Element::<A>::new()
-            .attr("href", &href)
-            .class("ml-auto px-4 py-2 border border-red-600 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors duration-200")
-            .text("Delete")
-            .render()
+        (html! {
+            a.href(#href).class("ml-auto px-4 py-2 border border-red-600 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors duration-200") { "Delete" }
+        }).render()
     }).unwrap_or_default();
 
     let draft_selected = post_status == "draft";
     let pub_selected = post_status == "published";
 
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 mb-6") { #title }
+    };
+    let content_header = html! {
+        div.class("px-6 py-4 border-b border-gray-200") {
+            h5.class("text-lg font-medium text-gray-900") { "Content" }
+        }
+    };
+    let title_label = html! {
+        label.for_("title").class(#label_class) { "Title *" }
+    };
+    let title_input = html! {
+        input.type_("text").id("title").name("title").required.class(#input_class).value(#post_title)
+    };
+    let slug_label = html! {
+        label.for_("slug").class(#label_class) { "Slug" }
+    };
+    let slug_input = html! {
+        input.type_("text").id("slug").name("slug").class(#input_class).value(#post_slug)
+    };
+    let content_label = html! {
+        label.for_("content").class(#label_class) { "Content" }
+    };
+    let content_textarea = html! {
+        textarea.id("content").name("content").rows("10").class(#input_class) { #post_content }
+    };
+    let pub_header = html! {
+        div.class("px-6 py-4 border-b border-gray-200") {
+            h5.class("text-lg font-medium text-gray-900") { "Publishing" }
+        }
+    };
+    let status_label = html! {
+        label.for_("status").class(#label_class) { "Status" }
+    };
+    let title_label_r = title_label.render();
+    let title_input_r = title_input.render();
+    let slug_label_r = slug_label.render();
+    let slug_input_r = slug_input.render();
+    let content_label_r = content_label.render();
+    let content_textarea_r = content_textarea.render();
+    let status_label_r = status_label.render();
+
     let content = Element::<Div>::new()
-        .child::<H1, _>(|h| {
-            h.class("text-2xl font-semibold text-gray-900 mb-6")
-                .text(title)
-        })
+        .raw(heading.render())
         .raw(&error_html)
         .child::<Form, _>(|f| {
             f.attr("method", "POST")
                 .class("space-y-6")
                 .child::<Div, _>(|d| {
                     d.class("bg-white rounded-lg shadow-sm border border-gray-200")
-                        .child::<Div, _>(|d| {
-                            d.class("px-6 py-4 border-b border-gray-200")
-                                .child::<H5, _>(|h| {
-                                    h.class("text-lg font-medium text-gray-900").text("Content")
-                                })
-                        })
+                        .raw(content_header.render())
                         .child::<Div, _>(|d| {
                             d.class("p-6 space-y-4")
+                                .child::<Div, _>(|d| d.raw(&title_label_r).raw(&title_input_r))
+                                .child::<Div, _>(|d| d.raw(&slug_label_r).raw(&slug_input_r))
                                 .child::<Div, _>(|d| {
-                                    d.child::<Label, _>(|l| {
-                                        l.attr("for", "title").class(label_class).text("Title *")
-                                    })
-                                    .child::<Input, _>(|i| {
-                                        i.attr("type", "text")
-                                            .id("title")
-                                            .attr("name", "title")
-                                            .bool_attr("required")
-                                            .class(input_class)
-                                            .attr("value", post_title)
-                                    })
-                                })
-                                .child::<Div, _>(|d| {
-                                    d.child::<Label, _>(|l| {
-                                        l.attr("for", "slug").class(label_class).text("Slug")
-                                    })
-                                    .child::<Input, _>(|i| {
-                                        i.attr("type", "text")
-                                            .id("slug")
-                                            .attr("name", "slug")
-                                            .class(input_class)
-                                            .attr("value", post_slug)
-                                    })
-                                })
-                                .child::<Div, _>(|d| {
-                                    d.child::<Label, _>(|l| {
-                                        l.attr("for", "content").class(label_class).text("Content")
-                                    })
-                                    .child::<Textarea, _>(
-                                        |t| {
-                                            t.id("content")
-                                                .attr("name", "content")
-                                                .attr("rows", "10")
-                                                .class(input_class)
-                                                .text(post_content)
-                                        },
-                                    )
+                                    d.raw(&content_label_r).raw(&content_textarea_r)
                                 })
                         })
                 })
                 .child::<Div, _>(|d| {
                     d.class("bg-white rounded-lg shadow-sm border border-gray-200")
-                        .child::<Div, _>(|d| {
-                            d.class("px-6 py-4 border-b border-gray-200")
-                                .child::<H5, _>(|h| {
-                                    h.class("text-lg font-medium text-gray-900")
-                                        .text("Publishing")
-                                })
-                        })
+                        .raw(pub_header.render())
                         .child::<Div, _>(|d| {
                             d.class("p-6").child::<Div, _>(|d| {
-                                d.child::<Label, _>(|l| {
-                                    l.attr("for", "status").class(label_class).text("Status")
-                                })
-                                .child::<SelectEl, _>(|s| {
+                                d.raw(&status_label_r).child::<SelectEl, _>(|s| {
                                     s.id("status")
                                         .attr("name", "status")
                                         .class(input_class)
@@ -1596,27 +1558,26 @@ fn render_post_form(post: Option<&Post>, error: Option<&str>) -> String {
 fn render_error_alert(error: Option<&str>) -> String {
     error
         .map(|e| {
-            Element::<Div>::new()
-                .class("mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg")
-                .text(e)
-                .render()
+            (html! {
+                div.class("mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg") {
+                    #e
+                }
+            })
+            .render()
         })
         .unwrap_or_default()
 }
 
 fn render_form_buttons(cancel_url: &str, delete_btn_html: &str) -> String {
-    Element::<Div>::new()
-        .class("flex gap-4")
-        .child::<Button, _>(|b| {
-            b.attr("type", "submit")
-                .class("px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200")
-                .text("Save")
-        })
-        .child::<A, _>(|a| {
-            a.attr("href", cancel_url)
-                .class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200")
-                .text("Cancel")
-        })
+    let save_btn = html! {
+        button.type_("submit").class("px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200") { "Save" }
+    };
+    let cancel_link = html! {
+        a.href(#cancel_url).class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200") { "Cancel" }
+    };
+    (html! { div.class("flex gap-4") {} })
+        .raw(save_btn.render())
+        .raw(cancel_link.render())
         .raw(delete_btn_html)
         .render()
 }
@@ -1627,34 +1588,37 @@ fn render_delete_page(
     item_name: &str,
     cancel_url: &str,
 ) -> String {
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 mb-6") { #page_title }
+    };
+    let msg = format!("You are about to delete the {}: ", item_label);
+    let warning = html! {
+        div.class("bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6") {
+            h4.class("text-lg font-semibold text-amber-800 mb-2") { "Are you sure?" }
+            p.class("text-amber-700 mb-2") {
+                #msg
+                strong.class("font-semibold") { #item_name }
+            }
+            p.class("text-amber-700") { "This action cannot be undone." }
+        }
+    };
+    let confirm_btn = html! {
+        button.type_("submit").class("px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200") { "Confirm Delete" }
+    };
+    let cancel_link = html! {
+        a.href(#cancel_url).class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200") { "Cancel" }
+    };
+    let confirm_btn_r = confirm_btn.render();
+    let cancel_link_r = cancel_link.render();
     let content = Element::<Div>::new()
-        .child::<H1, _>(|h| {
-            h.class("text-2xl font-semibold text-gray-900 mb-6").text(page_title)
-        })
+        .raw(heading.render())
         .child::<Div, _>(|d| {
             d.class("delete-confirmation max-w-2xl")
-                .child::<Div, _>(|d| {
-                    d.class("bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6")
-                        .child::<H4, _>(|h| h.class("text-lg font-semibold text-amber-800 mb-2").text("Are you sure?"))
-                        .child::<P, _>(|p| {
-                            p.class("text-amber-700 mb-2")
-                                .text(format!("You are about to delete the {}: ", item_label))
-                                .child::<Strong, _>(|s| s.class("font-semibold").text(item_name))
-                        })
-                        .child::<P, _>(|p| p.class("text-amber-700").text("This action cannot be undone."))
-                })
+                .raw(warning.render())
                 .child::<Form, _>(|f| {
-                    f.attr("method", "POST").class("flex gap-4")
-                        .child::<Button, _>(|b| {
-                            b.attr("type", "submit")
-                                .class("px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200")
-                                .text("Confirm Delete")
-                        })
-                        .child::<A, _>(|a| {
-                            a.attr("href", cancel_url)
-                                .class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200")
-                                .text("Cancel")
-                        })
+                    f.attr("method", "POST")
+                        .class("flex gap-4")
+                        .child::<Div, _>(|d| d.raw(&confirm_btn_r).raw(&cancel_link_r))
                 })
         })
         .render();
@@ -1677,27 +1641,31 @@ fn render_list_page(
     let th_class = "px-4 py-3 text-left text-sm font-medium text-gray-600";
     let no_sort: Vec<Option<&str>> = headers.iter().map(|_| None).collect();
 
+    let add_label = format!("+ Add {}", title.trim_end_matches('s'));
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900") { #title }
+    };
+    let add_btn = html! {
+        a.href(#add_url).class("px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200") { #add_label }
+    };
+
     let content = Element::<Div>::new()
         .child::<Div, _>(|d| {
             d.class("flex justify-between items-center mb-6")
-                .child::<H1, _>(|h| h.class("text-2xl font-semibold text-gray-900").text(title))
-                .child::<A, _>(|a| {
-                    a.attr("href", add_url)
-                        .class("px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200")
-                        .text(format!("+ Add {}", title.trim_end_matches('s')))
-                })
+                .raw(heading.render())
+                .raw(add_btn.render())
         })
         .child::<Div, _>(|d| {
             d.class("bg-white rounded-lg shadow-sm border border-gray-200 mb-6")
                 .child::<Div, _>(|d| {
                     d.class("p-4").child::<Form, _>(|f| {
                         f.class("flex gap-4").attr("method", "GET")
-                            .child::<Input, _>(|i| {
+                            .child::<ironhtml_elements::Input, _>(|i| {
                                 i.attr("type", "search").attr("name", "q")
                                     .class("flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500")
                                     .attr("placeholder", "Search...").attr("value", search)
                             })
-                            .child::<Button, _>(|b| {
+                            .child::<ironhtml_elements::Button, _>(|b| {
                                 b.attr("type", "submit")
                                     .class("px-4 py-2 border border-blue-600 text-blue-600 font-medium rounded-lg hover:bg-blue-50 transition-colors duration-200")
                                     .text("Filter")
@@ -1721,33 +1689,38 @@ fn render_comment_list(comments: &[&Comment], search: &str) -> String {
         let post_id_str = c.post_id.to_string();
         let edit_url = format!("/admin/comments/{}/change/", c.id);
         let del_url = format!("/admin/comments/{}/delete/", c.id);
+        let checkbox = html! {
+            input.type_("checkbox").name("selected").value(#&id_str).class("rounded border-gray-300")
+        };
+        let id_link = html! {
+            a.href(#&edit_url).class("text-blue-600 hover:text-blue-800 font-medium") { #&id_str }
+        };
+        let edit_link = html! {
+            a.href(#&edit_url).class(#edit_btn) { "Edit" }
+        };
+        let del_link = html! {
+            a.href(#del_url).class(#del_btn) { "Delete" }
+        };
+        let checkbox_r = checkbox.render();
+        let id_link_r = id_link.render();
+        let edit_link_r = edit_link.render();
+        let del_link_r = del_link.render();
+        let author_ref = &c.author;
+        let created_ref = &c.created_at;
         Element::<Tr>::new()
             .class("border-b border-gray-100 hover:bg-gray-50")
-            .child::<Td, _>(|td| {
-                td.class("px-4 py-3").child::<Input, _>(|i| {
-                    i.attr("type", "checkbox")
-                        .attr("name", "selected")
-                        .attr("value", &id_str)
-                        .class("rounded border-gray-300")
-                })
-            })
-            .child::<Td, _>(|td| {
-                td.class("px-4 py-3").child::<A, _>(|a| {
-                    a.attr("href", &edit_url)
-                        .class("text-blue-600 hover:text-blue-800 font-medium")
-                        .text(&id_str)
-                })
-            })
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&checkbox_r))
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&id_link_r))
             .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-600").text(&post_id_str))
-            .child::<Td, _>(|td| td.class("px-4 py-3").text(&c.author))
+            .child::<Td, _>(|td| td.class("px-4 py-3").text(author_ref))
             .child::<Td, _>(|td| {
                 td.class("px-4 py-3 text-gray-500 text-sm")
-                    .text(&c.created_at)
+                    .text(created_ref)
             })
             .child::<Td, _>(|td| {
                 td.class("px-4 py-3 space-x-2")
-                    .child::<A, _>(|a| a.attr("href", &edit_url).class(edit_btn).text("Edit"))
-                    .child::<A, _>(|a| a.attr("href", &del_url).class(del_btn).text("Delete"))
+                    .raw(&edit_link_r)
+                    .raw(&del_link_r)
             })
             .render_to(&mut rows);
     }
@@ -1779,70 +1752,59 @@ fn render_comment_form(comment: Option<&Comment>, error: Option<&str>) -> String
     let error_html = render_error_alert(error);
     let delete_btn = comment.map(|c| {
         let href = format!("/admin/comments/{}/delete/", c.id);
-        Element::<A>::new()
-            .attr("href", &href)
-            .class("ml-auto px-4 py-2 border border-red-600 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors duration-200")
-            .text("Delete").render()
+        (html! {
+            a.href(#href).class("ml-auto px-4 py-2 border border-red-600 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors duration-200") { "Delete" }
+        }).render()
     }).unwrap_or_default();
 
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 mb-6") { #title }
+    };
+    let section_header = html! {
+        div.class("px-6 py-4 border-b border-gray-200") {
+            h5.class("text-lg font-medium text-gray-900") { "Comment Details" }
+        }
+    };
+    let post_id_label = html! {
+        label.for_("post_id").class(#label_class) { "Post ID" }
+    };
+    let post_id_input = html! {
+        input.type_("number").id("post_id").name("post_id").class(#input_class).value(#c_post_id)
+    };
+    let author_label = html! {
+        label.for_("author").class(#label_class) { "Author *" }
+    };
+    let author_input = html! {
+        input.type_("text").id("author").name("author").required.class(#input_class).value(#c_author)
+    };
+    let content_label = html! {
+        label.for_("content").class(#label_class) { "Content" }
+    };
+    let content_textarea = html! {
+        textarea.id("content").name("content").rows("6").class(#input_class) { #c_content }
+    };
+    let post_id_label_r = post_id_label.render();
+    let post_id_input_r = post_id_input.render();
+    let author_label_r = author_label.render();
+    let author_input_r = author_input.render();
+    let content_label_r = content_label.render();
+    let content_textarea_r = content_textarea.render();
+
     let content = Element::<Div>::new()
-        .child::<H1, _>(|h| {
-            h.class("text-2xl font-semibold text-gray-900 mb-6")
-                .text(title)
-        })
+        .raw(heading.render())
         .raw(&error_html)
         .child::<Form, _>(|f| {
             f.attr("method", "POST")
                 .class("space-y-6")
                 .child::<Div, _>(|d| {
                     d.class("bg-white rounded-lg shadow-sm border border-gray-200")
-                        .child::<Div, _>(|d| {
-                            d.class("px-6 py-4 border-b border-gray-200")
-                                .child::<H5, _>(|h| {
-                                    h.class("text-lg font-medium text-gray-900")
-                                        .text("Comment Details")
-                                })
-                        })
+                        .raw(section_header.render())
                         .child::<Div, _>(|d| {
                             d.class("p-6 space-y-4")
+                                .child::<Div, _>(|d| d.raw(&post_id_label_r).raw(&post_id_input_r))
+                                .child::<Div, _>(|d| d.raw(&author_label_r).raw(&author_input_r))
                                 .child::<Div, _>(|d| {
-                                    d.child::<Label, _>(|l| {
-                                        l.attr("for", "post_id").class(label_class).text("Post ID")
-                                    })
-                                    .child::<Input, _>(|i| {
-                                        i.attr("type", "number")
-                                            .id("post_id")
-                                            .attr("name", "post_id")
-                                            .class(input_class)
-                                            .attr("value", &c_post_id)
-                                    })
-                                })
-                                .child::<Div, _>(|d| {
-                                    d.child::<Label, _>(|l| {
-                                        l.attr("for", "author").class(label_class).text("Author *")
-                                    })
-                                    .child::<Input, _>(|i| {
-                                        i.attr("type", "text")
-                                            .id("author")
-                                            .attr("name", "author")
-                                            .bool_attr("required")
-                                            .class(input_class)
-                                            .attr("value", &c_author)
-                                    })
-                                })
-                                .child::<Div, _>(|d| {
-                                    d.child::<Label, _>(|l| {
-                                        l.attr("for", "content").class(label_class).text("Content")
-                                    })
-                                    .child::<Textarea, _>(
-                                        |t| {
-                                            t.id("content")
-                                                .attr("name", "content")
-                                                .attr("rows", "6")
-                                                .class(input_class)
-                                                .text(&c_content)
-                                        },
-                                    )
+                                    d.raw(&content_label_r).raw(&content_textarea_r)
                                 })
                         })
                 })
@@ -1862,29 +1824,34 @@ fn render_tag_list(tags: &[&Tag], search: &str) -> String {
         let id_str = t.id.to_string();
         let edit_url = format!("/admin/tags/{}/change/", t.id);
         let del_url = format!("/admin/tags/{}/delete/", t.id);
+        let checkbox = html! {
+            input.type_("checkbox").name("selected").value(#&id_str).class("rounded border-gray-300")
+        };
+        let name_ref = &t.name;
+        let name_link = html! {
+            a.href(#&edit_url).class("text-blue-600 hover:text-blue-800 font-medium") { #name_ref }
+        };
+        let edit_link = html! {
+            a.href(#&edit_url).class(#edit_btn) { "Edit" }
+        };
+        let del_link = html! {
+            a.href(#del_url).class(#del_btn) { "Delete" }
+        };
+        let checkbox_r = checkbox.render();
+        let name_link_r = name_link.render();
+        let edit_link_r = edit_link.render();
+        let del_link_r = del_link.render();
+        let slug_ref = &t.slug;
         Element::<Tr>::new()
             .class("border-b border-gray-100 hover:bg-gray-50")
-            .child::<Td, _>(|td| {
-                td.class("px-4 py-3").child::<Input, _>(|i| {
-                    i.attr("type", "checkbox")
-                        .attr("name", "selected")
-                        .attr("value", &id_str)
-                        .class("rounded border-gray-300")
-                })
-            })
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&checkbox_r))
             .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-600").text(&id_str))
-            .child::<Td, _>(|td| {
-                td.class("px-4 py-3").child::<A, _>(|a| {
-                    a.attr("href", &edit_url)
-                        .class("text-blue-600 hover:text-blue-800 font-medium")
-                        .text(&t.name)
-                })
-            })
-            .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-500").text(&t.slug))
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&name_link_r))
+            .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-500").text(slug_ref))
             .child::<Td, _>(|td| {
                 td.class("px-4 py-3 space-x-2")
-                    .child::<A, _>(|a| a.attr("href", &edit_url).class(edit_btn).text("Edit"))
-                    .child::<A, _>(|a| a.attr("href", &del_url).class(del_btn).text("Delete"))
+                    .raw(&edit_link_r)
+                    .raw(&del_link_r)
             })
             .render_to(&mut rows);
     }
@@ -1912,57 +1879,49 @@ fn render_tag_form(tag: Option<&Tag>, error: Option<&str>) -> String {
     let error_html = render_error_alert(error);
     let delete_btn = tag.map(|t| {
         let href = format!("/admin/tags/{}/delete/", t.id);
-        Element::<A>::new()
-            .attr("href", &href)
-            .class("ml-auto px-4 py-2 border border-red-600 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors duration-200")
-            .text("Delete").render()
+        (html! {
+            a.href(#href).class("ml-auto px-4 py-2 border border-red-600 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors duration-200") { "Delete" }
+        }).render()
     }).unwrap_or_default();
 
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 mb-6") { #title }
+    };
+    let section_header = html! {
+        div.class("px-6 py-4 border-b border-gray-200") {
+            h5.class("text-lg font-medium text-gray-900") { "Tag Details" }
+        }
+    };
+    let name_label = html! {
+        label.for_("name").class(#label_class) { "Name *" }
+    };
+    let name_input = html! {
+        input.type_("text").id("name").name("name").required.class(#input_class).value(#t_name)
+    };
+    let slug_label = html! {
+        label.for_("slug").class(#label_class) { "Slug" }
+    };
+    let slug_input = html! {
+        input.type_("text").id("slug").name("slug").class(#input_class).value(#t_slug)
+    };
+    let name_label_r = name_label.render();
+    let name_input_r = name_input.render();
+    let slug_label_r = slug_label.render();
+    let slug_input_r = slug_input.render();
+
     let content = Element::<Div>::new()
-        .child::<H1, _>(|h| {
-            h.class("text-2xl font-semibold text-gray-900 mb-6")
-                .text(title)
-        })
+        .raw(heading.render())
         .raw(&error_html)
         .child::<Form, _>(|f| {
             f.attr("method", "POST")
                 .class("space-y-6")
                 .child::<Div, _>(|d| {
                     d.class("bg-white rounded-lg shadow-sm border border-gray-200")
-                        .child::<Div, _>(|d| {
-                            d.class("px-6 py-4 border-b border-gray-200")
-                                .child::<H5, _>(|h| {
-                                    h.class("text-lg font-medium text-gray-900")
-                                        .text("Tag Details")
-                                })
-                        })
+                        .raw(section_header.render())
                         .child::<Div, _>(|d| {
                             d.class("p-6 space-y-4")
-                                .child::<Div, _>(|d| {
-                                    d.child::<Label, _>(|l| {
-                                        l.attr("for", "name").class(label_class).text("Name *")
-                                    })
-                                    .child::<Input, _>(|i| {
-                                        i.attr("type", "text")
-                                            .id("name")
-                                            .attr("name", "name")
-                                            .bool_attr("required")
-                                            .class(input_class)
-                                            .attr("value", t_name)
-                                    })
-                                })
-                                .child::<Div, _>(|d| {
-                                    d.child::<Label, _>(|l| {
-                                        l.attr("for", "slug").class(label_class).text("Slug")
-                                    })
-                                    .child::<Input, _>(|i| {
-                                        i.attr("type", "text")
-                                            .id("slug")
-                                            .attr("name", "slug")
-                                            .class(input_class)
-                                            .attr("value", t_slug)
-                                    })
-                                })
+                                .child::<Div, _>(|d| d.raw(&name_label_r).raw(&name_input_r))
+                                .child::<Div, _>(|d| d.raw(&slug_label_r).raw(&slug_input_r))
                         })
                 })
                 .child::<Div, _>(|d| d.raw(render_form_buttons("/admin/tags/", &delete_btn)))

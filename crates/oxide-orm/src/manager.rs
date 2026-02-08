@@ -17,24 +17,8 @@ use crate::queryset::QuerySet;
 /// Each Model has a default Manager accessible via `Model::objects()`.
 /// Managers are lightweight and can be created freely.
 ///
-/// # Example
-///
-/// ```ignore
-/// use oxide_orm::Model;
-///
-/// // Get all users
-/// let users = User::objects().all().execute(&pool).await?;
-///
-/// // Get a specific user by primary key
-/// let user = User::objects().get(&pool, 1).await?;
-///
-/// // Create a new user
-/// let user = User::objects().create(&pool, User {
-///     id: 0,
-///     username: "alice".to_string(),
-///     email: "alice@example.com".to_string(),
-/// }).await?;
-/// ```
+/// Use `Model::objects()` to get a Manager, then call `.all()`,
+/// `.filter()`, `.get()`, etc. to build queries.
 #[derive(Debug)]
 pub struct Manager<M: Model> {
     _marker: PhantomData<M>,

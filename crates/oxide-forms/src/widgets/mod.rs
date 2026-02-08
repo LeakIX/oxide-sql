@@ -8,8 +8,9 @@ pub use bootstrap::{
 
 use std::collections::HashMap;
 
+use ironhtml::html;
 use ironhtml::typed::Element;
-use ironhtml_elements::{HtmlElement, Input, Textarea as TextareaEl};
+use ironhtml_elements::HtmlElement;
 
 /// Attributes that can be applied to a widget.
 #[derive(Debug, Clone, Default)]
@@ -75,9 +76,7 @@ pub struct HiddenInput;
 
 impl Widget for HiddenInput {
     fn render(&self, name: &str, value: Option<&str>, attrs: &WidgetAttrs) -> String {
-        let mut el = Element::<Input>::new()
-            .attr("type", "hidden")
-            .attr("name", name);
+        let mut el = html! { input.type_("hidden").name(#name) };
         if let Some(v) = value {
             el = el.attr("value", v);
         }
@@ -96,9 +95,7 @@ pub struct TextInput;
 
 impl Widget for TextInput {
     fn render(&self, name: &str, value: Option<&str>, attrs: &WidgetAttrs) -> String {
-        let mut el = Element::<Input>::new()
-            .attr("type", "text")
-            .attr("name", name);
+        let mut el = html! { input.type_("text").name(#name) };
         if let Some(v) = value {
             el = el.attr("value", v);
         }
@@ -124,10 +121,11 @@ impl Default for Textarea {
 
 impl Widget for Textarea {
     fn render(&self, name: &str, value: Option<&str>, attrs: &WidgetAttrs) -> String {
-        let mut el = Element::<TextareaEl>::new()
-            .attr("name", name)
-            .attr("rows", self.rows.to_string())
-            .attr("cols", self.cols.to_string());
+        let rows_str = self.rows.to_string();
+        let cols_str = self.cols.to_string();
+        let mut el = html! {
+            textarea.name(#name).rows(#rows_str).cols(#cols_str)
+        };
         el = apply_extra_attrs(el, attrs, &[]);
         if let Some(v) = value {
             el = el.text(v);

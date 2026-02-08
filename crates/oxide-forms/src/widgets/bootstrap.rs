@@ -2,8 +2,8 @@
 
 use super::{apply_extra_attrs, Widget, WidgetAttrs};
 
-use ironhtml::typed::Element;
-use ironhtml_elements::{Div, Input, Label, Option_ as OptEl, Select, Textarea};
+use ironhtml::html;
+use ironhtml_elements::{Label, Option_ as OptEl};
 
 /// Bootstrap 5 text input widget.
 #[derive(Debug, Clone)]
@@ -77,12 +77,12 @@ impl Widget for BootstrapTextInput {
             .get("id")
             .cloned()
             .unwrap_or_else(|| format!("id_{name}"));
+        let input_type = &self.input_type;
 
-        let mut el = Element::<Input>::new()
-            .attr("type", &self.input_type)
-            .class("form-control")
-            .id(&id)
-            .attr("name", name);
+        let mut el = html! {
+            input.type_(#input_type).class("form-control")
+                .id(#id).name(#name)
+        };
 
         if let Some(v) = value {
             el = el.attr("value", v);
@@ -141,12 +141,12 @@ impl Widget for BootstrapTextarea {
             .get("id")
             .cloned()
             .unwrap_or_else(|| format!("id_{name}"));
+        let rows_str = self.rows.to_string();
 
-        let mut el = Element::<Textarea>::new()
-            .class("form-control")
-            .id(&id)
-            .attr("name", name)
-            .attr("rows", self.rows.to_string());
+        let mut el = html! {
+            textarea.class("form-control").id(#id)
+                .name(#name).rows(#rows_str)
+        };
 
         if let Some(p) = &self.placeholder {
             el = el.attr("placeholder", p.as_str());
@@ -220,10 +220,9 @@ impl Widget for BootstrapSelect {
             .cloned()
             .unwrap_or_else(|| format!("id_{name}"));
 
-        let mut el = Element::<Select>::new()
-            .class("form-select")
-            .id(&id)
-            .attr("name", name);
+        let mut el = html! {
+            select.class("form-select").id(#id).name(#name)
+        };
 
         el = apply_extra_attrs(el, attrs, &["id"]);
 
@@ -296,21 +295,16 @@ impl Widget for BootstrapCheckbox {
         let label_text = self.label.clone();
         let id_for_label = id.clone();
 
-        Element::<Div>::new()
-            .class(wrapper_class)
-            .child::<Input, _>(|i| {
-                let i = i
-                    .class("form-check-input")
-                    .attr("type", "checkbox")
-                    .id(&id)
-                    .attr("name", name)
-                    .attr("value", "true");
-                if checked {
-                    i.bool_attr("checked")
-                } else {
-                    i
-                }
-            })
+        let mut inp = html! {
+            input.class("form-check-input").type_("checkbox")
+                .id(#id).name(#name).value("true")
+        };
+        if checked {
+            inp = inp.bool_attr("checked");
+        }
+
+        html! { div.class(#wrapper_class) }
+            .raw(inp.render())
             .when(label_text.is_some(), |d| {
                 d.child::<Label, _>(|l| {
                     l.class("form-check-label")
@@ -363,36 +357,34 @@ impl Widget for BootstrapRadioSelect {
             "form-check"
         };
 
-        let mut html = String::new();
+        let mut result = String::new();
 
         for (i, (opt_value, label)) in self.choices.iter().enumerate() {
             let id = format!("id_{name}_{i}");
             let checked = value.is_some_and(|v| v == opt_value);
 
-            let radio = Element::<Div>::new()
-                .class(wrapper_class)
-                .child::<Input, _>(|inp| {
-                    let inp = inp
-                        .class("form-check-input")
-                        .attr("type", "radio")
-                        .id(&id)
-                        .attr("name", name)
-                        .attr("value", opt_value.as_str());
-                    if checked {
-                        inp.bool_attr("checked")
-                    } else {
-                        inp
-                    }
-                })
-                .child::<Label, _>(|l| {
-                    l.class("form-check-label")
-                        .attr("for", &id)
-                        .text(label.as_str())
-                });
-            radio.render_to(&mut html);
+            let id_ref = id.as_str();
+            let mut inp = html! {
+                input.class("form-check-input").type_("radio")
+                    .id(#id_ref).name(#name).value(#opt_value)
+            };
+            if checked {
+                inp = inp.bool_attr("checked");
+            }
+
+            let label_el = html! {
+                label.class("form-check-label").for_(#id_ref) {
+                    #label
+                }
+            };
+
+            html! { div.class(#wrapper_class) }
+                .raw(inp.render())
+                .raw(label_el.render())
+                .render_to(&mut result);
         }
 
-        html
+        result
     }
 
     fn input_type(&self) -> &str {

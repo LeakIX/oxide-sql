@@ -1,7 +1,8 @@
 //! Admin delete confirmation view.
 
+use ironhtml::html;
 use ironhtml::typed::Element;
-use ironhtml_elements::{Button, Div, Form, Li, Strong, Ul, A, I, P};
+use ironhtml_elements::{Li, Ul};
 
 use oxide_router::Response;
 
@@ -29,76 +30,75 @@ pub fn delete_view(
     let related_html = if data.related_objects.is_empty() {
         String::new()
     } else {
-        Element::<Div>::new()
-            .class("alert alert-warning mt-3")
-            .child::<Strong, _>(|s| {
-                s.text(
-                    "The following related objects \
-                     will also be deleted:",
-                )
-            })
-            .child::<Ul, _>(|ul| {
-                ul.class("mb-0 mt-2").children(
-                    data.related_objects.iter(),
-                    |(model, count), li: Element<Li>| {
-                        let text = format!("{} {} object(s)", count, model);
-                        li.text(&text)
-                    },
-                )
-            })
-            .render()
+        html! {
+            div.class("alert alert-warning mt-3") {
+                strong {
+                    "The following related objects will also be deleted:"
+                }
+            }
+        }
+        .child::<Ul, _>(|ul| {
+            ul.class("mb-0 mt-2").children(
+                data.related_objects.iter(),
+                |(model, count), li: Element<Li>| {
+                    let text = format!("{} {} object(s)", count, model);
+                    li.text(&text)
+                },
+            )
+        })
+        .render()
     };
 
     let model_name = registration.verbose_name.to_lowercase();
     let list_url = site.list_url(&registration.slug);
     let delete_url = site.delete_url(&registration.slug, &data.pk);
+    let obj_str = &data.object_str;
 
-    let content = Element::<Div>::new()
-        .class("card")
-        .child::<Div, _>(|d| {
-            d.class("card-header bg-danger text-white")
-                .child::<I, _>(|i| i.class("bi bi-exclamation-triangle me-2"))
-                .text("Confirm Deletion")
-        })
-        .child::<Div, _>(|d| {
-            d.class("card-body")
-                .child::<P, _>(|p| {
-                    p.class("lead")
-                        .text(
-                            "Are you sure you want to \
-                               delete the ",
-                        )
-                        .text(&model_name)
-                        .text(" \"")
-                        .child::<Strong, _>(|s| s.text(&data.object_str))
-                        .text("\"?")
-                })
-                .child::<P, _>(|p| p.class("text-muted").text("This action cannot be undone."))
-                .raw(&related_html)
-        })
-        .child::<Div, _>(|d| {
-            d.class(
-                "card-footer d-flex \
-                 justify-content-between",
-            )
-            .child::<A, _>(|a| {
-                a.attr("href", &list_url)
-                    .class("btn btn-outline-secondary")
-                    .child::<I, _>(|i| i.class("bi bi-x-lg me-1"))
-                    .text("No, take me back")
-            })
-            .child::<Form, _>(|f| {
+    let confirm_text = format!("Are you sure you want to delete the {} \"", model_name);
+
+    let cancel_btn = html! {
+        a.href(#list_url).class("btn btn-outline-secondary") {
+            i.class("bi bi-x-lg me-1")
+            "No, take me back"
+        }
+    };
+
+    let submit_btn = html! {
+        button.type_("submit").class("btn btn-danger") {
+            i.class("bi bi-trash me-1")
+            "Yes, I'm sure"
+        }
+    };
+
+    let content = html! {
+        div.class("card") {
+            div.class("card-header bg-danger text-white") {
+                i.class("bi bi-exclamation-triangle me-2")
+                "Confirm Deletion"
+            }
+            div.class("card-body") {
+                p.class("lead") {
+                    #confirm_text
+                    strong { #obj_str }
+                    "\"?"
+                }
+                p.class("text-muted") {
+                    "This action cannot be undone."
+                }
+            }
+        }
+    }
+    .child::<ironhtml_elements::Div, _>(|d| d.class("card-body").raw(&related_html))
+    .child::<ironhtml_elements::Div, _>(|d| {
+        d.class("card-footer d-flex justify-content-between")
+            .raw(cancel_btn.render())
+            .child::<ironhtml_elements::Form, _>(|f| {
                 f.attr("method", "post")
                     .attr("action", &delete_url)
-                    .child::<Button, _>(|b| {
-                        b.attr("type", "submit")
-                            .class("btn btn-danger")
-                            .child::<I, _>(|i| i.class("bi bi-trash me-1"))
-                            .text("Yes, I'm sure")
-                    })
+                    .child::<ironhtml_elements::Div, _>(|d| d.raw(submit_btn.render()))
             })
-        })
-        .render();
+    })
+    .render();
 
     let breadcrumbs = vec![
         ("Home".to_string(), Some(format!("{}/", site.url_prefix))),
@@ -141,19 +141,18 @@ pub fn delete_success_view(
 
     let model_name = registration.verbose_name.to_lowercase();
     let list_url = site.list_url(&registration.slug);
+    let deleted_text = format!("The {} was successfully deleted.", model_name);
 
-    let content = Element::<Div>::new()
-        .child::<P, _>(|p| {
-            let text = format!("The {} was successfully deleted.", model_name);
-            p.text(&text)
-        })
-        .child::<A, _>(|a| {
-            a.attr("href", &list_url)
-                .class("btn btn-primary")
-                .child::<I, _>(|i| i.class("bi bi-arrow-left me-1"))
-                .text("Back to list")
-        })
-        .render();
+    let content = html! {
+        div {
+            p { #deleted_text }
+            a.href(#list_url).class("btn btn-primary") {
+                i.class("bi bi-arrow-left me-1")
+                "Back to list"
+            }
+        }
+    }
+    .render();
 
     let breadcrumbs = vec![
         ("Home".to_string(), Some(format!("{}/", site.url_prefix))),
@@ -205,7 +204,6 @@ impl DeleteResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::options::ModelAdmin;
 
     #[test]
     fn test_delete_result() {
