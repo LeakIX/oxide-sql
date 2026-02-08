@@ -41,6 +41,7 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2.0"
 tracing = "0.1.40"
 argon2 = "0.5"
+password-hash = { version = "0.5", features = ["getrandom"] }
 rand = "0.10"
 regex = "1.10"
 futures = "0.3"

@@ -1184,6 +1184,7 @@ dependencies = [
  "oxide-orm",
  "oxide-sql-core",
  "oxide-sql-derive",
+ "password-hash",
  "rand 0.10.0",
  "serde",
  "serde_json",
