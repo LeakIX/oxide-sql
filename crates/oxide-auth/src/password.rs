@@ -1,7 +1,7 @@
 //! Password hashing and verification using Argon2.
 
 use argon2::{password_hash::SaltString, Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use rand::rngs::OsRng;
+use password_hash::rand_core::OsRng;
 
 use crate::error::{AuthError, Result};
 
