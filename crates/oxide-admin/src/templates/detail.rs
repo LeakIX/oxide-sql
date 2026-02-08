@@ -2,7 +2,7 @@
 
 use ironhtml::html;
 use ironhtml::typed::Element;
-use ironhtml_elements::{Div, Form, Li, Tbody, Td, Th, Tr, P};
+use ironhtml_elements::{Div, Li, Tbody, Td, Th, Tr, P};
 
 /// Context for rendering a detail/edit view.
 #[derive(Debug, Clone)]
@@ -109,10 +109,8 @@ pub fn render_detail_view(ctx: &DetailViewContext) -> String {
         }
     };
 
-    Element::<Form>::new()
-        .attr("method", "post")
+    html! { form.method("post").enctype("multipart/form-data") }
         .attr("action", &ctx.action_url)
-        .attr("enctype", "multipart/form-data")
         .child::<Div, _>(|d| d.raw(&errors_html))
         .child::<Div, _>(|d| {
             d.class("row")
@@ -184,9 +182,7 @@ fn render_errors(errors: &[String]) -> String {
         strong { "Please correct the errors below:" }
     };
 
-    Element::<Div>::new()
-        .class("alert alert-danger")
-        .attr("role", "alert")
+    html! { div.class("alert alert-danger").role("alert") }
         .raw(heading.render())
         .child::<ironhtml_elements::Ul, _>(|ul| {
             ul.class("mb-0 mt-2")
@@ -197,8 +193,7 @@ fn render_errors(errors: &[String]) -> String {
 
 fn render_fieldsets(fieldsets: &[Fieldset], form_html: &str) -> String {
     if fieldsets.is_empty() {
-        return Element::<Div>::new()
-            .class("card mb-4")
+        return html! { div.class("card mb-4") }
             .child::<Div, _>(|d| d.class("card-body").raw(form_html))
             .render();
     }
@@ -230,8 +225,7 @@ fn render_fieldsets(fieldsets: &[Fieldset], form_html: &str) -> String {
                     i.class("bi bi-chevron-down")
                 }
             };
-            Element::<Div>::new()
-                .class("card mb-4")
+            html! { div.class("card mb-4") }
                 .child::<Div, _>(|d| {
                     d.class(
                         "card-header d-flex \
@@ -253,8 +247,7 @@ fn render_fieldsets(fieldsets: &[Fieldset], form_html: &str) -> String {
                     })
                 })
         } else {
-            Element::<Div>::new()
-                .class("card mb-4")
+            html! { div.class("card mb-4") }
                 .when(fieldset.name.is_some(), |d| {
                     d.child::<Div, _>(|d| {
                         d.class("card-header")
@@ -303,8 +296,7 @@ fn render_inlines(inlines: &[InlineFormset]) -> String {
             }
         };
 
-        let el = Element::<Div>::new()
-            .class("card mb-4")
+        let el = html! { div.class("card mb-4") }
             .raw(header.render())
             .child::<Div, _>(|d| {
                 d.class("card-body p-0").child::<Div, _>(|d| {

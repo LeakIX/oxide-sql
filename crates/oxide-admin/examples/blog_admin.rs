@@ -37,10 +37,9 @@ use oxide_sql_core::builder::{col, Delete, Insert, Select, Update};
 use oxide_sql_derive::Table;
 
 use ironhtml::html;
-use ironhtml::typed::{Document, Element};
+use ironhtml::typed::Document;
 use ironhtml_elements::{
-    Body, Div, Form, Head, Html, Li, Main, Meta, Nav, Option_, Script, Select as SelectEl, Td, Th,
-    Title, Tr, Ul,
+    Body, Div, Form, Head, Html, Li, Main, Meta, Option_, Script, Select as SelectEl, Td, Title, Ul,
 };
 
 // ============================================================================
@@ -754,7 +753,7 @@ async fn delete_comment_handler(req: Request, state: AppState) -> Response {
             };
             let confirm_btn_r = confirm_btn.render();
             let cancel_link_r = cancel_link.render();
-            let content = Element::<Div>::new()
+            let content = (html! { div })
                 .raw(heading.render())
                 .child::<Div, _>(|d| {
                     d.class("delete-confirmation max-w-2xl")
@@ -927,7 +926,7 @@ async fn delete_tag_handler(req: Request, state: AppState) -> Response {
             };
             let confirm_btn_r = confirm_btn.render();
             let cancel_link_r = cancel_link.render();
-            let content = Element::<Div>::new()
+            let content = (html! { div })
                 .raw(heading.render())
                 .child::<Div, _>(|d| {
                     d.class("delete-confirmation max-w-2xl")
@@ -1043,8 +1042,7 @@ fn render_sidebar() -> String {
     let logout_r = logout_link.render();
     let hr = html! { hr.class("my-6 border-gray-600") };
 
-    Element::<Nav>::new()
-        .class("w-64 min-h-screen bg-gray-800 text-gray-300 flex-shrink-0")
+    (html! { nav.class("w-64 min-h-screen bg-gray-800 text-gray-300 flex-shrink-0") })
         .child::<Div, _>(|d| {
             d.class("sticky top-0 p-4")
                 .raw(heading.render())
@@ -1103,8 +1101,7 @@ fn render_login_page(error: Option<&str>) -> String {
     let password_input_r = password_input.render();
     let submit_btn_r = submit_btn.render();
 
-    let content = Element::<Div>::new()
-        .class("min-h-screen flex items-center justify-center")
+    let content = (html! { div.class("min-h-screen flex items-center justify-center") })
         .child::<Div, _>(|d| {
             d.class("w-full max-w-md").child::<Div, _>(|d| {
                 d.class("bg-white rounded-lg shadow-sm border border-gray-200")
@@ -1196,7 +1193,7 @@ fn render_dashboard(store: &DataStore) -> String {
     let heading = html! {
         h1.class("text-2xl font-semibold text-gray-900 mb-6") { "Dashboard" }
     };
-    let content = Element::<Div>::new()
+    let content = (html! { div })
         .raw(heading.render())
         .child::<Div, _>(|d| d.class("grid grid-cols-1 md:grid-cols-3 gap-6").raw(&cards))
         .render();
@@ -1254,8 +1251,7 @@ fn render_post_list(
         let edit_link_r = edit_link.render();
         let del_link_r = del_link.render();
         let created_ref = &p.created_at;
-        Element::<Tr>::new()
-            .class("border-b border-gray-100 hover:bg-gray-50")
+        (html! { tr.class("border-b border-gray-100 hover:bg-gray-50") })
             .child::<Td, _>(|td| td.class("px-4 py-3").raw(&checkbox_r))
             .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-600").text(&id_str))
             .child::<Td, _>(|td| td.class("px-4 py-3").raw(&title_link_r))
@@ -1283,7 +1279,7 @@ fn render_post_list(
     let add_btn = html! {
         a.href("/admin/posts/add/").class("px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200") { "+ Add Post" }
     };
-    let content = Element::<Div>::new()
+    let content = (html! { div })
         .child::<Div, _>(|d| {
             d.class("flex justify-between items-center mb-6")
                 .raw(page_heading.render())
@@ -1355,14 +1351,12 @@ fn render_action_form_wrapper(
             let sort_link = html! {
                 a.href(#href_val).class("hover:text-gray-900") { #h_val }
             };
-            Element::<Th>::new()
-                .class(th_class)
+            (html! { th.class(#th_class) })
                 .bool_attr("data-sortable")
                 .raw(sort_link.render())
                 .render_to(&mut header_cells);
         } else {
-            Element::<Th>::new()
-                .class(th_class)
+            (html! { th.class(#th_class) })
                 .text(*h)
                 .render_to(&mut header_cells);
         }
@@ -1381,9 +1375,7 @@ fn render_action_form_wrapper(
     };
     let apply_btn_r = apply_btn.render();
 
-    Element::<Form>::new()
-        .attr("method", "POST")
-        .attr("action", action_url)
+    (html! { form.method("POST").action(#action_url) })
         .child::<Div, _>(|d| {
             d.class("bg-white rounded-lg shadow-sm border border-gray-200")
                 .child::<Div, _>(|d| {
@@ -1425,8 +1417,7 @@ fn render_pagination_nav(page: usize, total_pages: usize) -> String {
         };
         link.render_to(&mut links);
     }
-    Element::<Nav>::new()
-        .class("mt-6 flex justify-center")
+    (html! { nav.class("mt-6 flex justify-center") })
         .child::<Div, _>(|d| d.class("flex gap-1").raw(&links))
         .render()
 }
@@ -1501,7 +1492,7 @@ fn render_post_form(post: Option<&Post>, error: Option<&str>) -> String {
     let content_textarea_r = content_textarea.render();
     let status_label_r = status_label.render();
 
-    let content = Element::<Div>::new()
+    let content = (html! { div })
         .raw(heading.render())
         .raw(&error_html)
         .child::<Form, _>(|f| {
@@ -1610,7 +1601,7 @@ fn render_delete_page(
     };
     let confirm_btn_r = confirm_btn.render();
     let cancel_link_r = cancel_link.render();
-    let content = Element::<Div>::new()
+    let content = (html! { div })
         .raw(heading.render())
         .child::<Div, _>(|d| {
             d.class("delete-confirmation max-w-2xl")
@@ -1649,7 +1640,7 @@ fn render_list_page(
         a.href(#add_url).class("px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200") { #add_label }
     };
 
-    let content = Element::<Div>::new()
+    let content = (html! { div })
         .child::<Div, _>(|d| {
             d.class("flex justify-between items-center mb-6")
                 .raw(heading.render())
@@ -1707,8 +1698,7 @@ fn render_comment_list(comments: &[&Comment], search: &str) -> String {
         let del_link_r = del_link.render();
         let author_ref = &c.author;
         let created_ref = &c.created_at;
-        Element::<Tr>::new()
-            .class("border-b border-gray-100 hover:bg-gray-50")
+        (html! { tr.class("border-b border-gray-100 hover:bg-gray-50") })
             .child::<Td, _>(|td| td.class("px-4 py-3").raw(&checkbox_r))
             .child::<Td, _>(|td| td.class("px-4 py-3").raw(&id_link_r))
             .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-600").text(&post_id_str))
@@ -1790,7 +1780,7 @@ fn render_comment_form(comment: Option<&Comment>, error: Option<&str>) -> String
     let content_label_r = content_label.render();
     let content_textarea_r = content_textarea.render();
 
-    let content = Element::<Div>::new()
+    let content = (html! { div })
         .raw(heading.render())
         .raw(&error_html)
         .child::<Form, _>(|f| {
@@ -1842,8 +1832,7 @@ fn render_tag_list(tags: &[&Tag], search: &str) -> String {
         let edit_link_r = edit_link.render();
         let del_link_r = del_link.render();
         let slug_ref = &t.slug;
-        Element::<Tr>::new()
-            .class("border-b border-gray-100 hover:bg-gray-50")
+        (html! { tr.class("border-b border-gray-100 hover:bg-gray-50") })
             .child::<Td, _>(|td| td.class("px-4 py-3").raw(&checkbox_r))
             .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-600").text(&id_str))
             .child::<Td, _>(|td| td.class("px-4 py-3").raw(&name_link_r))
@@ -1909,7 +1898,7 @@ fn render_tag_form(tag: Option<&Tag>, error: Option<&str>) -> String {
     let slug_label_r = slug_label.render();
     let slug_input_r = slug_input.render();
 
-    let content = Element::<Div>::new()
+    let content = (html! { div })
         .raw(heading.render())
         .raw(&error_html)
         .child::<Form, _>(|f| {

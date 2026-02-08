@@ -3,7 +3,7 @@
 use ironhtml::html;
 use ironhtml::typed::Element;
 use ironhtml_elements::{
-    Div, Form, Li, Nav, Option_ as OptEl, Select, Table, Tbody, Td, Th, Thead, Tr, Ul, A,
+    Div, Li, Nav, Option_ as OptEl, Select, Table, Tbody, Td, Th, Thead, Tr, Ul, A,
 };
 
 /// Context for rendering a list view.
@@ -116,7 +116,7 @@ pub fn render_list_view(ctx: &ListViewContext) -> String {
         }
     };
 
-    Element::<Div>::new()
+    html! { div }
         .child::<Div, _>(|d| {
             d.class(
                 "d-flex justify-content-between \
@@ -199,8 +199,7 @@ fn render_filters(filters: &[ListFilter], active: &[(String, String)]) -> String
             a.href("?").class(#all_class) { "All" }
         };
 
-        let el = Element::<Div>::new()
-            .class("card mb-3")
+        let el = html! { div.class("card mb-3") }
             .child::<Div, _>(|d| d.class("card-header").text(&filter.label))
             .child::<Div, _>(|d| {
                 let d = d
@@ -237,10 +236,7 @@ fn render_actions(actions: &[(String, String)]) -> String {
         }
     };
 
-    Element::<Form>::new()
-        .attr("method", "post")
-        .attr("action", "")
-        .class("bulk-actions")
+    html! { form.method("post").action("").class("bulk-actions") }
         .child::<Select, _>(|s| {
             let s = s
                 .attr("name", "action")
@@ -266,8 +262,7 @@ fn render_table(ctx: &ListViewContext) -> String {
         .render();
     }
 
-    Element::<Div>::new()
-        .class("table-responsive")
+    html! { div.class("table-responsive") }
         .child::<Table, _>(|t| {
             t.class("table table-striped table-hover mb-0")
                 .child::<Thead, _>(|thead| {
@@ -376,82 +371,79 @@ fn render_pagination(ctx: &ListViewContext) -> String {
         span.class("text-muted") { #showing_text }
     };
 
-    Element::<Div>::new()
-        .class(
-            "d-flex justify-content-between \
-             align-items-center",
+    html! {
+        div.class(
+            "d-flex justify-content-between align-items-center"
         )
-        .raw(showing_span.render())
-        .child::<Nav, _>(|nav| {
-            nav.child::<Ul, _>(|ul| {
-                let mut ul = ul.class("pagination pagination-sm mb-0");
+    }
+    .raw(showing_span.render())
+    .child::<Nav, _>(|nav| {
+        nav.child::<Ul, _>(|ul| {
+            let mut ul = ul.class("pagination pagination-sm mb-0");
 
-                // Previous button
-                if ctx.page > 1 {
-                    let prev_href = format!("?page={}", ctx.page - 1);
-                    let link = html! {
-                        a.class("page-link").href(#prev_href) {
-                            "&laquo;"
-                        }
-                    };
-                    ul = ul.child::<Li, _>(|li| li.class("page-item").raw(link.render()));
-                } else {
-                    let disabled = html! {
-                        span.class("page-link") { "&laquo;" }
-                    };
-                    ul = ul
-                        .child::<Li, _>(|li| li.class("page-item disabled").raw(disabled.render()));
-                }
-
-                // Page numbers
-                for p in 1..=ctx.total_pages {
-                    let p_str = p.to_string();
-                    if p == ctx.page {
-                        let active_span = html! {
-                            span.class("page-link") { #p_str }
-                        };
-                        ul = ul.child::<Li, _>(|li| {
-                            li.class("page-item active").raw(active_span.render())
-                        });
-                    } else if (p as isize - ctx.page as isize).abs() <= 2
-                        || p == 1
-                        || p == ctx.total_pages
-                    {
-                        let href = format!("?page={}", p);
-                        let link = html! {
-                            a.class("page-link").href(#href) {
-                                #p_str
-                            }
-                        };
-                        ul = ul.child::<Li, _>(|li| li.class("page-item").raw(link.render()));
-                    } else if (p as isize - ctx.page as isize).abs() == 3 {
-                        let dots = html! {
-                            span.class("page-link") { "..." }
-                        };
-                        ul = ul
-                            .child::<Li, _>(|li| li.class("page-item disabled").raw(dots.render()));
+            // Previous button
+            if ctx.page > 1 {
+                let prev_href = format!("?page={}", ctx.page - 1);
+                let link = html! {
+                    a.class("page-link").href(#prev_href) {
+                        "&laquo;"
                     }
-                }
+                };
+                ul = ul.child::<Li, _>(|li| li.class("page-item").raw(link.render()));
+            } else {
+                let disabled = html! {
+                    span.class("page-link") { "&laquo;" }
+                };
+                ul = ul.child::<Li, _>(|li| li.class("page-item disabled").raw(disabled.render()));
+            }
 
-                // Next button
-                if ctx.page < ctx.total_pages {
-                    let next_href = format!("?page={}", ctx.page + 1);
+            // Page numbers
+            for p in 1..=ctx.total_pages {
+                let p_str = p.to_string();
+                if p == ctx.page {
+                    let active_span = html! {
+                        span.class("page-link") { #p_str }
+                    };
+                    ul = ul.child::<Li, _>(|li| {
+                        li.class("page-item active").raw(active_span.render())
+                    });
+                } else if (p as isize - ctx.page as isize).abs() <= 2
+                    || p == 1
+                    || p == ctx.total_pages
+                {
+                    let href = format!("?page={}", p);
                     let link = html! {
-                        a.class("page-link").href(#next_href) {
-                            "&raquo;"
+                        a.class("page-link").href(#href) {
+                            #p_str
                         }
                     };
                     ul = ul.child::<Li, _>(|li| li.class("page-item").raw(link.render()));
-                } else {
-                    let disabled = html! {
-                        span.class("page-link") { "&raquo;" }
+                } else if (p as isize - ctx.page as isize).abs() == 3 {
+                    let dots = html! {
+                        span.class("page-link") { "..." }
                     };
-                    ul = ul
-                        .child::<Li, _>(|li| li.class("page-item disabled").raw(disabled.render()));
+                    ul = ul.child::<Li, _>(|li| li.class("page-item disabled").raw(dots.render()));
                 }
+            }
 
-                ul
-            })
+            // Next button
+            if ctx.page < ctx.total_pages {
+                let next_href = format!("?page={}", ctx.page + 1);
+                let link = html! {
+                    a.class("page-link").href(#next_href) {
+                        "&raquo;"
+                    }
+                };
+                ul = ul.child::<Li, _>(|li| li.class("page-item").raw(link.render()));
+            } else {
+                let disabled = html! {
+                    span.class("page-link") { "&raquo;" }
+                };
+                ul = ul.child::<Li, _>(|li| li.class("page-item disabled").raw(disabled.render()));
+            }
+
+            ul
         })
-        .render()
+    })
+    .render()
 }
