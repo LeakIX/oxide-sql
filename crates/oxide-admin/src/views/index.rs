@@ -1,9 +1,11 @@
 //! Admin dashboard view.
 
+use ironhtml::typed::Element;
+use ironhtml_elements::{Code, Div, A, H5, I, P};
+
 use oxide_router::{Request, Response};
 
 use crate::site::AdminSite;
-use crate::templates::html_escape;
 
 use super::render_admin_page;
 
@@ -13,64 +15,91 @@ use super::render_admin_page;
 pub fn index_view(site: &AdminSite, _req: &Request, user_name: Option<String>) -> Response {
     let models = site.registered_models();
 
-    let model_cards: Vec<String> = models
-        .iter()
-        .map(|reg| {
+    let content = if models.is_empty() {
+        Element::<Div>::new()
+            .class("alert alert-info")
+            .child::<I, _>(|i| i.class("bi bi-info-circle me-2"))
+            .text("No models have been registered yet. Use ")
+            .child::<Code, _>(|c| c.text("AdminSite::register"))
+            .text(" to add models to the admin.")
+            .render()
+    } else {
+        let mut cards_html = String::new();
+        for reg in &models {
             let list_url = site.list_url(&reg.slug);
             let add_url = site.add_url(&reg.slug);
+            let verbose_lower = reg.verbose_name.to_lowercase();
+            let manage_text = format!("Manage {} records", verbose_lower);
 
-            format!(
-                r#"<div class="col-md-4 col-lg-3 mb-4">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <h5 class="card-title">
-                                <i class="bi bi-table me-2"></i>{verbose_name_plural}
-                            </h5>
-                            <p class="card-text text-muted">
-                                Manage {verbose_name} records
-                            </p>
-                        </div>
-                        <div class="card-footer bg-transparent">
-                            <a href="{list_url}" class="btn btn-outline-primary btn-sm me-1">
-                                <i class="bi bi-list me-1"></i>View
-                            </a>
-                            <a href="{add_url}" class="btn btn-primary btn-sm">
-                                <i class="bi bi-plus-lg me-1"></i>Add
-                            </a>
-                        </div>
-                    </div>
-                </div>"#,
-                verbose_name_plural = html_escape(&reg.verbose_name_plural),
-                verbose_name = html_escape(&reg.verbose_name.to_lowercase()),
-                list_url = html_escape(&list_url),
-                add_url = html_escape(&add_url),
-            )
-        })
-        .collect();
+            Element::<Div>::new()
+                .class("col-md-4 col-lg-3 mb-4")
+                .child::<Div, _>(|card| {
+                    card.class("card h-100")
+                        .child::<Div, _>(|cb| {
+                            cb.class("card-body")
+                                .child::<H5, _>(|h| {
+                                    h.class("card-title")
+                                        .child::<I, _>(|i| {
+                                            i.class(
+                                                "bi bi-table \
+                                                 me-2",
+                                            )
+                                        })
+                                        .text(&reg.verbose_name_plural)
+                                })
+                                .child::<P, _>(|p| {
+                                    p.class("card-text text-muted").text(&manage_text)
+                                })
+                        })
+                        .child::<Div, _>(|cf| {
+                            cf.class("card-footer bg-transparent")
+                                .child::<A, _>(|a| {
+                                    a.attr("href", &list_url)
+                                        .class(
+                                            "btn \
+                                         btn-outline-primary \
+                                         btn-sm me-1",
+                                        )
+                                        .child::<I, _>(|i| i.class("bi bi-list me-1"))
+                                        .text("View")
+                                })
+                                .child::<A, _>(|a| {
+                                    a.attr("href", &add_url)
+                                        .class(
+                                            "btn btn-primary \
+                                         btn-sm",
+                                        )
+                                        .child::<I, _>(|i| {
+                                            i.class(
+                                                "bi bi-plus-lg \
+                                             me-1",
+                                            )
+                                        })
+                                        .text("Add")
+                                })
+                        })
+                })
+                .render_to(&mut cards_html);
+        }
 
-    let content = if model_cards.is_empty() {
-        r#"<div class="alert alert-info">
-            <i class="bi bi-info-circle me-2"></i>
-            No models have been registered yet.
-            Use <code>AdminSite::register</code> to add models to the admin.
-        </div>"#
-            .to_string()
-    } else {
-        format!(
-            r#"<div class="row">
-                {cards}
-            </div>
-
-            <div class="card mt-4">
-                <div class="card-header">
-                    <i class="bi bi-clock-history me-2"></i>Recent Actions
-                </div>
-                <div class="card-body">
-                    <p class="text-muted mb-0">No recent actions.</p>
-                </div>
-            </div>"#,
-            cards = model_cards.join("\n")
-        )
+        let mut html = String::new();
+        Element::<Div>::new()
+            .class("row")
+            .raw(&cards_html)
+            .render_to(&mut html);
+        Element::<Div>::new()
+            .class("card mt-4")
+            .child::<Div, _>(|d| {
+                d.class("card-header")
+                    .child::<I, _>(|i| i.class("bi bi-clock-history me-2"))
+                    .text("Recent Actions")
+            })
+            .child::<Div, _>(|d| {
+                d.class("card-body")
+                    .child::<P, _>(|p| p.class("text-muted mb-0").text("No recent actions."))
+            })
+            .render_to(&mut html);
+        html
     };
 
     let breadcrumbs = vec![("Home".to_string(), None)];

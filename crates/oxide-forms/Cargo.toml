@@ -14,5 +14,7 @@ thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 regex.workspace = true
+ironhtml.workspace = true
+ironhtml-elements.workspace = true
 
 [dev-dependencies]

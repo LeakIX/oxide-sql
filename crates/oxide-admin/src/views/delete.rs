@@ -1,9 +1,11 @@
 //! Admin delete confirmation view.
 
+use ironhtml::typed::Element;
+use ironhtml_elements::{Button, Div, Form, Li, Strong, Ul, A, I, P};
+
 use oxide_router::Response;
 
 use crate::site::{AdminSite, ModelRegistration};
-use crate::templates::html_escape;
 
 use super::render_admin_page;
 
@@ -27,54 +29,76 @@ pub fn delete_view(
     let related_html = if data.related_objects.is_empty() {
         String::new()
     } else {
-        let items: Vec<String> = data
-            .related_objects
-            .iter()
-            .map(|(model, count)| format!("<li>{} {} object(s)</li>", count, html_escape(model)))
-            .collect();
-
-        format!(
-            r#"<div class="alert alert-warning mt-3">
-                <strong>The following related objects will also be deleted:</strong>
-                <ul class="mb-0 mt-2">{}</ul>
-            </div>"#,
-            items.join("\n")
-        )
+        Element::<Div>::new()
+            .class("alert alert-warning mt-3")
+            .child::<Strong, _>(|s| {
+                s.text(
+                    "The following related objects \
+                     will also be deleted:",
+                )
+            })
+            .child::<Ul, _>(|ul| {
+                ul.class("mb-0 mt-2").children(
+                    data.related_objects.iter(),
+                    |(model, count), li: Element<Li>| {
+                        let text = format!("{} {} object(s)", count, model);
+                        li.text(&text)
+                    },
+                )
+            })
+            .render()
     };
 
-    let content = format!(
-        r#"<div class="card">
-            <div class="card-header bg-danger text-white">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                Confirm Deletion
-            </div>
-            <div class="card-body">
-                <p class="lead">
-                    Are you sure you want to delete the {model_name}
-                    "<strong>{object_str}</strong>"?
-                </p>
-                <p class="text-muted">
-                    This action cannot be undone.
-                </p>
-                {related_html}
-            </div>
-            <div class="card-footer d-flex justify-content-between">
-                <a href="{list_url}" class="btn btn-outline-secondary">
-                    <i class="bi bi-x-lg me-1"></i>No, take me back
-                </a>
-                <form method="post" action="{delete_url}">
-                    <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash me-1"></i>Yes, I'm sure
-                    </button>
-                </form>
-            </div>
-        </div>"#,
-        model_name = html_escape(&registration.verbose_name.to_lowercase()),
-        object_str = html_escape(&data.object_str),
-        related_html = related_html,
-        list_url = html_escape(&site.list_url(&registration.slug)),
-        delete_url = html_escape(&site.delete_url(&registration.slug, &data.pk)),
-    );
+    let model_name = registration.verbose_name.to_lowercase();
+    let list_url = site.list_url(&registration.slug);
+    let delete_url = site.delete_url(&registration.slug, &data.pk);
+
+    let content = Element::<Div>::new()
+        .class("card")
+        .child::<Div, _>(|d| {
+            d.class("card-header bg-danger text-white")
+                .child::<I, _>(|i| i.class("bi bi-exclamation-triangle me-2"))
+                .text("Confirm Deletion")
+        })
+        .child::<Div, _>(|d| {
+            d.class("card-body")
+                .child::<P, _>(|p| {
+                    p.class("lead")
+                        .text(
+                            "Are you sure you want to \
+                               delete the ",
+                        )
+                        .text(&model_name)
+                        .text(" \"")
+                        .child::<Strong, _>(|s| s.text(&data.object_str))
+                        .text("\"?")
+                })
+                .child::<P, _>(|p| p.class("text-muted").text("This action cannot be undone."))
+                .raw(&related_html)
+        })
+        .child::<Div, _>(|d| {
+            d.class(
+                "card-footer d-flex \
+                 justify-content-between",
+            )
+            .child::<A, _>(|a| {
+                a.attr("href", &list_url)
+                    .class("btn btn-outline-secondary")
+                    .child::<I, _>(|i| i.class("bi bi-x-lg me-1"))
+                    .text("No, take me back")
+            })
+            .child::<Form, _>(|f| {
+                f.attr("method", "post")
+                    .attr("action", &delete_url)
+                    .child::<Button, _>(|b| {
+                        b.attr("type", "submit")
+                            .class("btn btn-danger")
+                            .child::<I, _>(|i| i.class("bi bi-trash me-1"))
+                            .text("Yes, I'm sure")
+                    })
+            })
+        })
+        .render();
 
     let breadcrumbs = vec![
         ("Home".to_string(), Some(format!("{}/", site.url_prefix))),
@@ -115,16 +139,21 @@ pub fn delete_success_view(
         ),
     )];
 
-    let content = format!(
-        r#"<p>
-            The {model_name} was successfully deleted.
-        </p>
-        <a href="{list_url}" class="btn btn-primary">
-            <i class="bi bi-arrow-left me-1"></i>Back to list
-        </a>"#,
-        model_name = html_escape(&registration.verbose_name.to_lowercase()),
-        list_url = html_escape(&site.list_url(&registration.slug)),
-    );
+    let model_name = registration.verbose_name.to_lowercase();
+    let list_url = site.list_url(&registration.slug);
+
+    let content = Element::<Div>::new()
+        .child::<P, _>(|p| {
+            let text = format!("The {} was successfully deleted.", model_name);
+            p.text(&text)
+        })
+        .child::<A, _>(|a| {
+            a.attr("href", &list_url)
+                .class("btn btn-primary")
+                .child::<I, _>(|i| i.class("bi bi-arrow-left me-1"))
+                .text("Back to list")
+        })
+        .render();
 
     let breadcrumbs = vec![
         ("Home".to_string(), Some(format!("{}/", site.url_prefix))),

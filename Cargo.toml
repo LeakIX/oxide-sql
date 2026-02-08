@@ -44,3 +44,13 @@ argon2 = "0.5"
 rand = "0.8"
 regex = "1.10"
 futures = "0.3"
+ironhtml = "1.0.0"
+ironhtml-elements = "1.0.0"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
