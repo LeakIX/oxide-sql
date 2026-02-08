@@ -18,8 +18,9 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust
 //! use oxide_migrate::prelude::*;
+//! use oxide_migrate::OxideMigration;
 //!
 //! // Define a migration
 //! pub struct Migration0001;
@@ -43,7 +44,9 @@
 //!                     ColumnSchema::new("email", SqlType::Varchar(255)),
 //!                     ColumnSchema::new("created_at", SqlType::Timestamp)
 //!                         .not_null()
-//!                         .default(DefaultValue::Expression("CURRENT_TIMESTAMP".into())),
+//!                         .default(DefaultValue::Expression(
+//!                             "CURRENT_TIMESTAMP".into(),
+//!                         )),
 //!                 ],
 //!                 vec!["id".to_string()],
 //!             ),

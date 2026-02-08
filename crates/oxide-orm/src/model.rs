@@ -15,27 +15,8 @@ use crate::manager::Manager;
 /// - Primary key accessor
 /// - Instance methods for save/delete operations
 ///
-/// # Example
-///
-/// ```ignore
-/// use oxide_orm::Model;
-///
-/// #[derive(Model)]
-/// #[model(table = "users")]
-/// struct User {
-///     #[field(primary_key, auto)]
-///     id: i64,
-///     #[field(max_length = 255)]
-///     username: String,
-///     email: String,
-/// }
-///
-/// // Access the manager
-/// let users = User::objects().all();
-///
-/// // Get by primary key
-/// let user = User::objects().get(&pool, 1).await?;
-/// ```
+/// Implement this trait for your model types to get access to
+/// [`Manager`] and [`QuerySet`](crate::QuerySet) operations.
 pub trait Model: Sized + Send + Sync + 'static {
     /// The table type implementing `Table`.
     type Table: Table<Row = Self>;

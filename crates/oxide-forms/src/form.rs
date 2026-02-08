@@ -2,9 +2,13 @@
 
 use std::collections::HashMap;
 
+use ironhtml::html;
+use ironhtml::typed::Element;
+use ironhtml_elements::{Div, Li, Ul};
+
 use crate::error::{Result, ValidationErrors};
 use crate::validation::Validator;
-use crate::widgets::{html_escape, Widget, WidgetAttrs};
+use crate::widgets::{Widget, WidgetAttrs};
 
 /// Definition of a form field.
 pub struct FormFieldDef {
@@ -125,26 +129,17 @@ pub fn render_bootstrap_field(
     value: Option<&str>,
     errors: &[String],
 ) -> String {
-    let mut html = String::new();
     let id = format!("id_{}", field.name);
+    let has_errors = !errors.is_empty();
 
-    // Field wrapper
-    html.push_str("<div class=\"mb-3\">\n");
-
-    // Label
     let required_marker = if field.required { " *" } else { "" };
-    html.push_str(&format!(
-        "  <label for=\"{}\" class=\"form-label\">{}{}</label>\n",
-        id,
-        html_escape(&field.label),
-        required_marker
-    ));
+    let label_text = format!("{}{}", field.label, required_marker);
 
-    // Determine widget class based on errors
+    // Prepare widget attrs
     let mut attrs = field.attrs.clone();
     attrs.set("id", &id);
 
-    if !errors.is_empty() {
+    if has_errors {
         let current_class = attrs.get("class").cloned().unwrap_or_default();
         attrs.set("class", format!("{current_class} is-invalid").trim());
     }
@@ -157,30 +152,28 @@ pub fn render_bootstrap_field(
         attrs.set("required", "required");
     }
 
-    // Render widget
     let actual_value = value.or(field.initial.as_deref());
-    html.push_str("  ");
-    html.push_str(&field.widget.render(&field.name, actual_value, &attrs));
-    html.push('\n');
+    let widget_html = field.widget.render(&field.name, actual_value, &attrs);
 
-    // Error messages
-    for error in errors {
-        html.push_str(&format!(
-            "  <div class=\"invalid-feedback\">{}</div>\n",
-            html_escape(error)
-        ));
-    }
+    let label_el = html! {
+        label.for_(#id).class("form-label") { #label_text }
+    };
 
-    // Help text
-    if let Some(help) = &field.help_text {
-        html.push_str(&format!(
-            "  <div class=\"form-text\">{}</div>\n",
-            html_escape(help)
-        ));
-    }
+    let help_text = field.help_text.clone();
 
-    html.push_str("</div>\n");
-    html
+    html! { div.class("mb-3") }
+        .raw(label_el.render())
+        .raw(&widget_html)
+        .children(errors, |error, div: Element<Div>| {
+            div.class("invalid-feedback").text(error)
+        })
+        .when(help_text.is_some(), |d| {
+            d.child::<Div, _>(|h| {
+                h.class("form-text")
+                    .text(help_text.as_deref().unwrap_or(""))
+            })
+        })
+        .render()
 }
 
 /// Renders a complete form with Bootstrap 5 styling.
@@ -191,38 +184,41 @@ pub fn render_bootstrap_form(
     action: &str,
     method: &str,
 ) -> String {
-    let mut html = String::new();
-
-    // Form open tag
-    html.push_str(&format!(
-        "<form action=\"{}\" method=\"{}\">\n",
-        html_escape(action),
-        html_escape(method)
-    ));
+    let mut form = html! {
+        form.action(#action).method(#method)
+    };
 
     // Non-field errors
     if let Some(form_errors) = errors.get("__all__") {
-        html.push_str("<div class=\"alert alert-danger\" role=\"alert\">\n");
-        html.push_str("  <ul class=\"mb-0\">\n");
-        for error in form_errors {
-            html.push_str(&format!("    <li>{}</li>\n", html_escape(error)));
-        }
-        html.push_str("  </ul>\n");
-        html.push_str("</div>\n");
+        form = form.child::<Div, _>(|d| {
+            d.class("alert alert-danger")
+                .attr("role", "alert")
+                .child::<Ul, _>(|ul| {
+                    ul.class("mb-0")
+                        .children(form_errors.iter(), |e, li: Element<Li>| li.text(e))
+                })
+        });
     }
 
-    // Render each field
+    // Render each field inside a wrapper div
     for field in fields {
         let value = values.get(&field.name).map(String::as_str);
         let field_errors = errors.get(&field.name).cloned().unwrap_or_default();
-        html.push_str(&render_bootstrap_field(field, value, &field_errors));
+        let field_html = render_bootstrap_field(field, value, &field_errors);
+        form = form.child::<Div, _>(|d| d.raw(&field_html));
     }
 
     // Submit button
-    html.push_str("<button type=\"submit\" class=\"btn btn-primary\">Submit</button>\n");
+    form = form.child::<Div, _>(|d| {
+        let btn = html! {
+            button.type_("submit").class("btn btn-primary") {
+                "Submit"
+            }
+        };
+        d.raw(btn.render())
+    });
 
-    html.push_str("</form>\n");
-    html
+    form.render()
 }
 
 /// A simple form builder for creating forms programmatically.

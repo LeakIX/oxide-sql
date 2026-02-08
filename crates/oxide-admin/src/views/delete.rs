@@ -1,9 +1,12 @@
 //! Admin delete confirmation view.
 
+use ironhtml::html;
+use ironhtml::typed::Element;
+use ironhtml_elements::{Li, Ul};
+
 use oxide_router::Response;
 
 use crate::site::{AdminSite, ModelRegistration};
-use crate::templates::html_escape;
 
 use super::render_admin_page;
 
@@ -27,54 +30,75 @@ pub fn delete_view(
     let related_html = if data.related_objects.is_empty() {
         String::new()
     } else {
-        let items: Vec<String> = data
-            .related_objects
-            .iter()
-            .map(|(model, count)| format!("<li>{} {} object(s)</li>", count, html_escape(model)))
-            .collect();
-
-        format!(
-            r#"<div class="alert alert-warning mt-3">
-                <strong>The following related objects will also be deleted:</strong>
-                <ul class="mb-0 mt-2">{}</ul>
-            </div>"#,
-            items.join("\n")
-        )
+        html! {
+            div.class("alert alert-warning mt-3") {
+                strong {
+                    "The following related objects will also be deleted:"
+                }
+            }
+        }
+        .child::<Ul, _>(|ul| {
+            ul.class("mb-0 mt-2").children(
+                data.related_objects.iter(),
+                |(model, count), li: Element<Li>| {
+                    let text = format!("{} {} object(s)", count, model);
+                    li.text(&text)
+                },
+            )
+        })
+        .render()
     };
 
-    let content = format!(
-        r#"<div class="card">
-            <div class="card-header bg-danger text-white">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                Confirm Deletion
-            </div>
-            <div class="card-body">
-                <p class="lead">
-                    Are you sure you want to delete the {model_name}
-                    "<strong>{object_str}</strong>"?
-                </p>
-                <p class="text-muted">
-                    This action cannot be undone.
-                </p>
-                {related_html}
-            </div>
-            <div class="card-footer d-flex justify-content-between">
-                <a href="{list_url}" class="btn btn-outline-secondary">
-                    <i class="bi bi-x-lg me-1"></i>No, take me back
-                </a>
-                <form method="post" action="{delete_url}">
-                    <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash me-1"></i>Yes, I'm sure
-                    </button>
-                </form>
-            </div>
-        </div>"#,
-        model_name = html_escape(&registration.verbose_name.to_lowercase()),
-        object_str = html_escape(&data.object_str),
-        related_html = related_html,
-        list_url = html_escape(&site.list_url(&registration.slug)),
-        delete_url = html_escape(&site.delete_url(&registration.slug, &data.pk)),
-    );
+    let model_name = registration.verbose_name.to_lowercase();
+    let list_url = site.list_url(&registration.slug);
+    let delete_url = site.delete_url(&registration.slug, &data.pk);
+    let obj_str = &data.object_str;
+
+    let confirm_text = format!("Are you sure you want to delete the {} \"", model_name);
+
+    let cancel_btn = html! {
+        a.href(#list_url).class("btn btn-outline-secondary") {
+            i.class("bi bi-x-lg me-1")
+            "No, take me back"
+        }
+    };
+
+    let submit_btn = html! {
+        button.type_("submit").class("btn btn-danger") {
+            i.class("bi bi-trash me-1")
+            "Yes, I'm sure"
+        }
+    };
+
+    let content = html! {
+        div.class("card") {
+            div.class("card-header bg-danger text-white") {
+                i.class("bi bi-exclamation-triangle me-2")
+                "Confirm Deletion"
+            }
+            div.class("card-body") {
+                p.class("lead") {
+                    #confirm_text
+                    strong { #obj_str }
+                    "\"?"
+                }
+                p.class("text-muted") {
+                    "This action cannot be undone."
+                }
+            }
+        }
+    }
+    .child::<ironhtml_elements::Div, _>(|d| d.class("card-body").raw(&related_html))
+    .child::<ironhtml_elements::Div, _>(|d| {
+        d.class("card-footer d-flex justify-content-between")
+            .raw(cancel_btn.render())
+            .child::<ironhtml_elements::Form, _>(|f| {
+                f.attr("method", "post")
+                    .attr("action", &delete_url)
+                    .child::<ironhtml_elements::Div, _>(|d| d.raw(submit_btn.render()))
+            })
+    })
+    .render();
 
     let breadcrumbs = vec![
         ("Home".to_string(), Some(format!("{}/", site.url_prefix))),
@@ -115,16 +139,20 @@ pub fn delete_success_view(
         ),
     )];
 
-    let content = format!(
-        r#"<p>
-            The {model_name} was successfully deleted.
-        </p>
-        <a href="{list_url}" class="btn btn-primary">
-            <i class="bi bi-arrow-left me-1"></i>Back to list
-        </a>"#,
-        model_name = html_escape(&registration.verbose_name.to_lowercase()),
-        list_url = html_escape(&site.list_url(&registration.slug)),
-    );
+    let model_name = registration.verbose_name.to_lowercase();
+    let list_url = site.list_url(&registration.slug);
+    let deleted_text = format!("The {} was successfully deleted.", model_name);
+
+    let content = html! {
+        div {
+            p { #deleted_text }
+            a.href(#list_url).class("btn btn-primary") {
+                i.class("bi bi-arrow-left me-1")
+                "Back to list"
+            }
+        }
+    }
+    .render();
 
     let breadcrumbs = vec![
         ("Home".to_string(), Some(format!("{}/", site.url_prefix))),
@@ -176,7 +204,6 @@ impl DeleteResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::options::ModelAdmin;
 
     #[test]
     fn test_delete_result() {

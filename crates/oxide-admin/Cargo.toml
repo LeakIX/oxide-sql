@@ -18,6 +18,8 @@ tokio.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+ironhtml.workspace = true
+ironhtml-elements.workspace = true
 
 [dev-dependencies]
 hyper = { version = "1.5", features = ["server", "http1"] }

@@ -8,6 +8,10 @@ pub use bootstrap::{
 
 use std::collections::HashMap;
 
+use ironhtml::html;
+use ironhtml::typed::Element;
+use ironhtml_elements::HtmlElement;
+
 /// Attributes that can be applied to a widget.
 #[derive(Debug, Clone, Default)]
 pub struct WidgetAttrs {
@@ -72,15 +76,12 @@ pub struct HiddenInput;
 
 impl Widget for HiddenInput {
     fn render(&self, name: &str, value: Option<&str>, attrs: &WidgetAttrs) -> String {
-        let value_attr = value
-            .map(|v| format!(r#" value="{}""#, html_escape(v)))
-            .unwrap_or_default();
-        let extra_attrs = if attrs.attrs.is_empty() {
-            String::new()
-        } else {
-            format!(" {}", attrs.to_html())
-        };
-        format!(r#"<input type="hidden" name="{name}"{value_attr}{extra_attrs}>"#)
+        let mut el = html! { input.type_("hidden").name(#name) };
+        if let Some(v) = value {
+            el = el.attr("value", v);
+        }
+        el = apply_extra_attrs(el, attrs, &[]);
+        el.render()
     }
 
     fn input_type(&self) -> &str {
@@ -94,15 +95,12 @@ pub struct TextInput;
 
 impl Widget for TextInput {
     fn render(&self, name: &str, value: Option<&str>, attrs: &WidgetAttrs) -> String {
-        let value_attr = value
-            .map(|v| format!(r#" value="{}""#, html_escape(v)))
-            .unwrap_or_default();
-        let extra_attrs = if attrs.attrs.is_empty() {
-            String::new()
-        } else {
-            format!(" {}", attrs.to_html())
-        };
-        format!(r#"<input type="text" name="{name}"{value_attr}{extra_attrs}>"#)
+        let mut el = html! { input.type_("text").name(#name) };
+        if let Some(v) = value {
+            el = el.attr("value", v);
+        }
+        el = apply_extra_attrs(el, attrs, &[]);
+        el.render()
     }
 }
 
@@ -123,16 +121,16 @@ impl Default for Textarea {
 
 impl Widget for Textarea {
     fn render(&self, name: &str, value: Option<&str>, attrs: &WidgetAttrs) -> String {
-        let content = value.map(html_escape).unwrap_or_default();
-        let extra_attrs = if attrs.attrs.is_empty() {
-            String::new()
-        } else {
-            format!(" {}", attrs.to_html())
+        let rows_str = self.rows.to_string();
+        let cols_str = self.cols.to_string();
+        let mut el = html! {
+            textarea.name(#name).rows(#rows_str).cols(#cols_str)
         };
-        format!(
-            r#"<textarea name="{}" rows="{}" cols="{}"{extra_attrs}>{}</textarea>"#,
-            name, self.rows, self.cols, content
-        )
+        el = apply_extra_attrs(el, attrs, &[]);
+        if let Some(v) = value {
+            el = el.text(v);
+        }
+        el.render()
     }
 
     fn input_type(&self) -> &str {
@@ -140,13 +138,24 @@ impl Widget for Textarea {
     }
 }
 
-/// Escapes HTML special characters.
-pub fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#x27;")
+/// Applies extra attributes from `WidgetAttrs` onto a typed element,
+/// skipping any keys listed in `skip`.
+pub(crate) fn apply_extra_attrs<E: HtmlElement>(
+    mut el: Element<E>,
+    attrs: &WidgetAttrs,
+    skip: &[&str],
+) -> Element<E> {
+    for (k, v) in &attrs.attrs {
+        if skip.contains(&k.as_str()) {
+            continue;
+        }
+        if k == "class" {
+            el = el.class(v.as_str());
+        } else {
+            el = el.attr(k.clone(), v.clone());
+        }
+    }
+    el
 }
 
 #[cfg(test)]
@@ -179,10 +188,11 @@ mod tests {
     }
 
     #[test]
-    fn test_html_escape() {
-        assert_eq!(html_escape("<script>"), "&lt;script&gt;");
-        assert_eq!(html_escape("\"test\""), "&quot;test&quot;");
-        assert_eq!(html_escape("a & b"), "a &amp; b");
+    fn test_html_escape_via_ironhtml() {
+        let widget = TextInput;
+        let html = widget.render("x", Some("<script>"), &WidgetAttrs::new());
+        assert!(html.contains("&lt;script&gt;"));
+        assert!(!html.contains("<script>"));
     }
 
     #[test]

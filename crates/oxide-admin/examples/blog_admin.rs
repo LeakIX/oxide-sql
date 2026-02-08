@@ -36,6 +36,13 @@ use oxide_router::{Method, Request, Response, Router};
 use oxide_sql_core::builder::{col, Delete, Insert, Select, Update};
 use oxide_sql_derive::Table;
 
+use ironhtml::html;
+use ironhtml::typed::{Document, Element};
+use ironhtml_elements::{
+    Body, Div, Form, Head, Html, Li, Main, Meta, Nav, Option_, Script, Select as SelectEl, Td, Th,
+    Title, Tr, Ul,
+};
+
 // ============================================================================
 // Models - Using #[derive(Table)] for type-safe queries
 // ============================================================================
@@ -502,7 +509,7 @@ async fn add_post_handler(req: Request, state: AppState) -> Response {
         });
 
         return Response::redirect("/admin/posts/")
-            .header("X-Message", format!("Post created successfully"));
+            .header("X-Message", "Post created successfully".to_string());
     }
 
     Response::html(render_post_form(None, None))
@@ -574,210 +581,625 @@ async fn delete_post_handler(req: Request, state: AppState) -> Response {
     }
 }
 
+async fn action_posts_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login");
+    }
+
+    let body_str = req.body_string().unwrap_or_default();
+    let form_data = Request::parse_query_string(&body_str);
+
+    let action = form_data.get("action").map(|s| s.as_str()).unwrap_or("");
+
+    // Collect selected IDs from "selected=1&selected=2&..." format
+    let selected: Vec<i64> = body_str
+        .split('&')
+        .filter_map(|pair| {
+            let (key, val) = pair.split_once('=')?;
+            if key == "selected" {
+                val.parse().ok()
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if action == "delete_selected" && !selected.is_empty() {
+        let mut store = state.write().await;
+        store.posts.retain(|p| !selected.contains(&p.id));
+    }
+
+    Response::redirect("/admin/posts/")
+}
+
+// ============================================================================
+// Comments handlers
+// ============================================================================
+
+async fn list_comments_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login?next=/admin/comments/");
+    }
+
+    let store = state.read().await;
+    let search = req.get_query("q").unwrap_or("");
+
+    let mut comments: Vec<&Comment> = store.comments.iter().collect();
+    if !search.is_empty() {
+        comments.retain(|c| {
+            c.author.to_lowercase().contains(&search.to_lowercase())
+                || c.content.to_lowercase().contains(&search.to_lowercase())
+        });
+    }
+
+    let html = render_comment_list(&comments, search);
+    Response::html(html)
+}
+
+async fn add_comment_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login");
+    }
+
+    if req.method == Method::Post {
+        let body_str = req.body_string().unwrap_or_default();
+        let form_data = Request::parse_query_string(&body_str);
+
+        let post_id: i64 = form_data
+            .get("post_id")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        let author = form_data.get("author").cloned().unwrap_or_default();
+        let content = form_data.get("content").cloned().unwrap_or_default();
+
+        if author.is_empty() {
+            return Response::html(render_comment_form(None, Some("Author is required")));
+        }
+
+        let mut store = state.write().await;
+        let new_id = store.comments.iter().map(|c| c.id).max().unwrap_or(0) + 1;
+        let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+        store.comments.push(Comment {
+            id: new_id,
+            post_id,
+            author,
+            content,
+            created_at: now,
+        });
+
+        return Response::redirect("/admin/comments/");
+    }
+
+    Response::html(render_comment_form(None, None))
+}
+
+async fn change_comment_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login");
+    }
+
+    let pk: i64 = req.params.parse("pk").unwrap_or(0);
+
+    if req.method == Method::Post {
+        let body_str = req.body_string().unwrap_or_default();
+        let form_data = Request::parse_query_string(&body_str);
+
+        let post_id: i64 = form_data
+            .get("post_id")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        let author = form_data.get("author").cloned().unwrap_or_default();
+        let content = form_data.get("content").cloned().unwrap_or_default();
+
+        let mut store = state.write().await;
+        if let Some(comment) = store.comments.iter_mut().find(|c| c.id == pk) {
+            comment.post_id = post_id;
+            comment.author = author;
+            comment.content = content;
+        }
+
+        return Response::redirect("/admin/comments/");
+    }
+
+    let store = state.read().await;
+    match store.comments.iter().find(|c| c.id == pk) {
+        Some(c) => Response::html(render_comment_form(Some(c), None)),
+        None => Response::not_found(),
+    }
+}
+
+async fn delete_comment_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login");
+    }
+
+    let pk: i64 = req.params.parse("pk").unwrap_or(0);
+
+    if req.method == Method::Post {
+        let mut store = state.write().await;
+        store.comments.retain(|c| c.id != pk);
+        return Response::redirect("/admin/comments/");
+    }
+
+    let store = state.read().await;
+    match store.comments.iter().find(|c| c.id == pk) {
+        Some(c) => {
+            let msg = format!("You are about to delete comment #{} by ", c.id);
+            let author_ref = &c.author;
+            let heading = html! {
+                h1.class("text-2xl font-semibold text-gray-900 mb-6") {
+                    "Delete Comment"
+                }
+            };
+            let warning = html! {
+                div.class("bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6") {
+                    h4.class("text-lg font-semibold text-amber-800 mb-2") {
+                        "Are you sure?"
+                    }
+                    p.class("text-amber-700 mb-2") {
+                        #msg
+                        strong { #author_ref }
+                    }
+                    p.class("text-amber-700") {
+                        "This action cannot be undone."
+                    }
+                }
+            };
+            let confirm_btn = html! {
+                button.type_("submit").class("px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors duration-200") { "Confirm Delete" }
+            };
+            let cancel_link = html! {
+                a.href("/admin/comments/").class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200") { "Cancel" }
+            };
+            let confirm_btn_r = confirm_btn.render();
+            let cancel_link_r = cancel_link.render();
+            let content = Element::<Div>::new()
+                .raw(heading.render())
+                .child::<Div, _>(|d| {
+                    d.class("delete-confirmation max-w-2xl")
+                        .raw(warning.render())
+                        .child::<Form, _>(|f| {
+                            f.attr("method", "POST")
+                                .class("flex gap-4")
+                                .child::<Div, _>(|d| d.raw(&confirm_btn_r).raw(&cancel_link_r))
+                        })
+                })
+                .render();
+            Response::html(render_base("Delete Comment", &content, true))
+        }
+        None => Response::not_found(),
+    }
+}
+
+async fn action_comments_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login");
+    }
+
+    let body_str = req.body_string().unwrap_or_default();
+    let form_data = Request::parse_query_string(&body_str);
+    let action = form_data.get("action").map(|s| s.as_str()).unwrap_or("");
+
+    let selected: Vec<i64> = body_str
+        .split('&')
+        .filter_map(|pair| {
+            let (key, val) = pair.split_once('=')?;
+            if key == "selected" {
+                val.parse().ok()
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if action == "delete_selected" && !selected.is_empty() {
+        let mut store = state.write().await;
+        store.comments.retain(|c| !selected.contains(&c.id));
+    }
+
+    Response::redirect("/admin/comments/")
+}
+
+// ============================================================================
+// Tags handlers
+// ============================================================================
+
+async fn list_tags_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login?next=/admin/tags/");
+    }
+
+    let store = state.read().await;
+    let search = req.get_query("q").unwrap_or("");
+
+    let mut tags: Vec<&Tag> = store.tags.iter().collect();
+    if !search.is_empty() {
+        tags.retain(|t| t.name.to_lowercase().contains(&search.to_lowercase()));
+    }
+
+    let html = render_tag_list(&tags, search);
+    Response::html(html)
+}
+
+async fn add_tag_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login");
+    }
+
+    if req.method == Method::Post {
+        let body_str = req.body_string().unwrap_or_default();
+        let form_data = Request::parse_query_string(&body_str);
+
+        let name = form_data.get("name").cloned().unwrap_or_default();
+        let slug = form_data.get("slug").cloned().unwrap_or_default();
+
+        if name.is_empty() {
+            return Response::html(render_tag_form(None, Some("Name is required")));
+        }
+
+        let mut store = state.write().await;
+        let new_id = store.tags.iter().map(|t| t.id).max().unwrap_or(0) + 1;
+
+        store.tags.push(Tag {
+            id: new_id,
+            name,
+            slug,
+        });
+
+        return Response::redirect("/admin/tags/");
+    }
+
+    Response::html(render_tag_form(None, None))
+}
+
+async fn change_tag_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login");
+    }
+
+    let pk: i64 = req.params.parse("pk").unwrap_or(0);
+
+    if req.method == Method::Post {
+        let body_str = req.body_string().unwrap_or_default();
+        let form_data = Request::parse_query_string(&body_str);
+
+        let name = form_data.get("name").cloned().unwrap_or_default();
+        let slug = form_data.get("slug").cloned().unwrap_or_default();
+
+        let mut store = state.write().await;
+        if let Some(tag) = store.tags.iter_mut().find(|t| t.id == pk) {
+            tag.name = name;
+            tag.slug = slug;
+        }
+
+        return Response::redirect("/admin/tags/");
+    }
+
+    let store = state.read().await;
+    match store.tags.iter().find(|t| t.id == pk) {
+        Some(t) => Response::html(render_tag_form(Some(t), None)),
+        None => Response::not_found(),
+    }
+}
+
+async fn delete_tag_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login");
+    }
+
+    let pk: i64 = req.params.parse("pk").unwrap_or(0);
+
+    if req.method == Method::Post {
+        let mut store = state.write().await;
+        store.tags.retain(|t| t.id != pk);
+        return Response::redirect("/admin/tags/");
+    }
+
+    let store = state.read().await;
+    match store.tags.iter().find(|t| t.id == pk) {
+        Some(t) => {
+            let name_ref = &t.name;
+            let heading = html! {
+                h1.class("text-2xl font-semibold text-gray-900 mb-6") {
+                    "Delete Tag"
+                }
+            };
+            let warning = html! {
+                div.class("bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6") {
+                    h4.class("text-lg font-semibold text-amber-800 mb-2") {
+                        "Are you sure?"
+                    }
+                    p.class("text-amber-700 mb-2") {
+                        "You are about to delete the tag: "
+                        strong { #name_ref }
+                    }
+                    p.class("text-amber-700") {
+                        "This action cannot be undone."
+                    }
+                }
+            };
+            let confirm_btn = html! {
+                button.type_("submit").class("px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors duration-200") { "Confirm Delete" }
+            };
+            let cancel_link = html! {
+                a.href("/admin/tags/").class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200") { "Cancel" }
+            };
+            let confirm_btn_r = confirm_btn.render();
+            let cancel_link_r = cancel_link.render();
+            let content = Element::<Div>::new()
+                .raw(heading.render())
+                .child::<Div, _>(|d| {
+                    d.class("delete-confirmation max-w-2xl")
+                        .raw(warning.render())
+                        .child::<Form, _>(|f| {
+                            f.attr("method", "POST")
+                                .class("flex gap-4")
+                                .child::<Div, _>(|d| d.raw(&confirm_btn_r).raw(&cancel_link_r))
+                        })
+                })
+                .render();
+            Response::html(render_base("Delete Tag", &content, true))
+        }
+        None => Response::not_found(),
+    }
+}
+
+async fn action_tags_handler(req: Request, state: AppState) -> Response {
+    if !is_authenticated(&req, &state).await {
+        return Response::redirect("/admin/login");
+    }
+
+    let body_str = req.body_string().unwrap_or_default();
+    let form_data = Request::parse_query_string(&body_str);
+    let action = form_data.get("action").map(|s| s.as_str()).unwrap_or("");
+
+    let selected: Vec<i64> = body_str
+        .split('&')
+        .filter_map(|pair| {
+            let (key, val) = pair.split_once('=')?;
+            if key == "selected" {
+                val.parse().ok()
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if action == "delete_selected" && !selected.is_empty() {
+        let mut store = state.write().await;
+        store.tags.retain(|t| !selected.contains(&t.id));
+    }
+
+    Response::redirect("/admin/tags/")
+}
+
 // ============================================================================
 // Template Rendering
 // ============================================================================
 
 fn render_base(title: &str, content: &str, is_logged_in: bool) -> String {
-    format!(
-        r#"<!DOCTYPE html>
-<html lang="en" class="h-full">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title} | Blog Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {{
+    let tailwind_config_js = r#"
+        tailwind.config = {
             darkMode: 'class',
-            theme: {{
-                extend: {{
-                    colors: {{
+            theme: {
+                extend: {
+                    colors: {
                         primary: '#3b82f6',
                         muted: '#6b7280',
                         destructive: '#ef4444',
-                    }}
-                }}
-            }}
-        }}
-    </script>
-</head>
-<body class="h-full bg-gray-50">
-    <div class="flex h-full">
-        {sidebar}
-        <main class="flex-1 p-6 overflow-auto">
-            {content}
-        </main>
-    </div>
-</body>
-</html>"#,
-        title = title,
-        sidebar = if is_logged_in {
-            render_sidebar()
-        } else {
-            String::new()
-        },
-        content = content,
-    )
+                    }
+                }
+            }
+        }
+    "#;
+
+    Document::new()
+        .doctype()
+        .root::<Html, _>(|html| {
+            html.attr("lang", "en")
+                .class("h-full")
+                .child::<Head, _>(|head| {
+                    head.child::<Meta, _>(|m| m.attr("charset", "UTF-8"))
+                        .child::<Meta, _>(|m| {
+                            m.attr("name", "viewport")
+                                .attr("content", "width=device-width, initial-scale=1.0")
+                        })
+                        .child::<Title, _>(|t| t.text(format!("{} | Blog Admin", title)))
+                        .child::<Script, _>(|s| s.attr("src", "https://cdn.tailwindcss.com"))
+                        .child::<Script, _>(|s| s.raw(tailwind_config_js))
+                })
+                .child::<Body, _>(|body| {
+                    body.class("h-full bg-gray-50").child::<Div, _>(|d| {
+                        d.class("flex h-full")
+                            .when(is_logged_in, |d| d.raw(render_sidebar()))
+                            .child::<Main, _>(|m| {
+                                m.class("flex-1 p-6 overflow-auto")
+                                    .child::<Div, _>(|d| d.raw(content))
+                            })
+                    })
+                })
+        })
+        .build()
 }
 
 fn render_sidebar() -> String {
-    r#"<nav class="w-64 min-h-screen bg-gray-800 text-gray-300 flex-shrink-0">
-        <div class="sticky top-0 p-4">
-            <h2 class="text-white text-lg font-semibold mb-6">Blog Admin</h2>
-            <ul class="space-y-2">
-                <li>
-                    <a href="/admin/"
-                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white
-                              transition-colors duration-200">
-                        Dashboard
-                    </a>
-                </li>
-                <li>
-                    <a href="/admin/posts/"
-                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white
-                              transition-colors duration-200">
-                        Posts
-                    </a>
-                </li>
-                <li>
-                    <a href="/admin/comments/"
-                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white
-                              transition-colors duration-200">
-                        Comments
-                    </a>
-                </li>
-                <li>
-                    <a href="/admin/tags/"
-                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white
-                              transition-colors duration-200">
-                        Tags
-                    </a>
-                </li>
-            </ul>
-            <hr class="my-6 border-gray-600">
-            <ul>
-                <li>
-                    <a href="/admin/logout"
-                       class="block px-4 py-2 rounded-lg text-red-400 hover:bg-gray-700
-                              hover:text-red-300 transition-colors duration-200">
-                        Logout
-                    </a>
-                </li>
-            </ul>
-        </div>
-    </nav>"#
-        .to_string()
+    let nav_link_class = "block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition-colors duration-200";
+
+    let heading = html! {
+        h2.class("text-white text-lg font-semibold mb-6") { "Blog Admin" }
+    };
+    let dashboard_link = html! { a.href("/admin/").class(#nav_link_class) { "Dashboard" } };
+    let posts_link = html! { a.href("/admin/posts/").class(#nav_link_class) { "Posts" } };
+    let comments_link = html! { a.href("/admin/comments/").class(#nav_link_class) { "Comments" } };
+    let tags_link = html! { a.href("/admin/tags/").class(#nav_link_class) { "Tags" } };
+    let logout_link = html! {
+        a.href("/admin/logout").class("block px-4 py-2 rounded-lg text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors duration-200") { "Logout" }
+    };
+    let dash_r = dashboard_link.render();
+    let posts_r = posts_link.render();
+    let comments_r = comments_link.render();
+    let tags_r = tags_link.render();
+    let logout_r = logout_link.render();
+    let hr = html! { hr.class("my-6 border-gray-600") };
+
+    Element::<Nav>::new()
+        .class("w-64 min-h-screen bg-gray-800 text-gray-300 flex-shrink-0")
+        .child::<Div, _>(|d| {
+            d.class("sticky top-0 p-4")
+                .raw(heading.render())
+                .child::<Ul, _>(|ul| {
+                    ul.class("space-y-2")
+                        .child::<Li, _>(|li| li.raw(&dash_r))
+                        .child::<Li, _>(|li| li.raw(&posts_r))
+                        .child::<Li, _>(|li| li.raw(&comments_r))
+                        .child::<Li, _>(|li| li.raw(&tags_r))
+                })
+                .raw(hr.render())
+                .child::<Ul, _>(|ul| ul.child::<Li, _>(|li| li.raw(&logout_r)))
+        })
+        .render()
 }
 
 fn render_login_page(error: Option<&str>) -> String {
+    let input_class = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200";
     let error_html = error
         .map(|e| {
-            format!(
-                r#"<div class="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-                    {}
-                </div>"#,
-                e
-            )
+            (html! {
+                div.class("mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg") {
+                    #e
+                }
+            })
+            .render()
         })
         .unwrap_or_default();
 
-    let content = format!(
-        r#"<div class="min-h-screen flex items-center justify-center">
-            <div class="w-full max-w-md">
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div class="px-6 py-4 border-b border-gray-200">
-                        <h4 class="text-xl font-semibold text-gray-900">Admin Login</h4>
-                    </div>
-                    <div class="p-6">
-                        {error_html}
-                        <form method="POST" class="space-y-4">
-                            <div>
-                                <label for="username"
-                                       class="block text-sm font-medium text-gray-700 mb-1">
-                                    Username
-                                </label>
-                                <input type="text" id="username" name="username" required
-                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg
-                                              focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                                              transition-colors duration-200">
-                            </div>
-                            <div>
-                                <label for="password"
-                                       class="block text-sm font-medium text-gray-700 mb-1">
-                                    Password
-                                </label>
-                                <input type="password" id="password" name="password" required
-                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg
-                                              focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                                              transition-colors duration-200">
-                            </div>
-                            <button type="submit"
-                                    class="w-full px-4 py-2 bg-blue-600 text-white font-medium
-                                           rounded-lg hover:bg-blue-700 focus:ring-2
-                                           focus:ring-blue-500 focus:ring-offset-2
-                                           transition-colors duration-200">
-                                Login
-                            </button>
-                        </form>
-                        <p class="mt-4 text-sm text-gray-500">
-                            Default: admin / admin123
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>"#,
-        error_html = error_html,
-    );
+    let header = html! {
+        div.class("px-6 py-4 border-b border-gray-200") {
+            h4.class("text-xl font-semibold text-gray-900") { "Admin Login" }
+        }
+    };
+    let username_label = html! {
+        label.for_("username").class("block text-sm font-medium text-gray-700 mb-1") { "Username" }
+    };
+    let username_input = html! {
+        input.type_("text").id("username").name("username").required.class(#input_class)
+    };
+    let password_label = html! {
+        label.for_("password").class("block text-sm font-medium text-gray-700 mb-1") { "Password" }
+    };
+    let password_input = html! {
+        input.type_("password").id("password").name("password").required.class(#input_class)
+    };
+    let submit_btn = html! {
+        button.type_("submit").class("w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200") { "Login" }
+    };
+    let hint = html! {
+        p.class("mt-4 text-sm text-gray-500") { "Default: admin / admin123" }
+    };
+    let username_label_r = username_label.render();
+    let username_input_r = username_input.render();
+    let password_label_r = password_label.render();
+    let password_input_r = password_input.render();
+    let submit_btn_r = submit_btn.render();
+
+    let content = Element::<Div>::new()
+        .class("min-h-screen flex items-center justify-center")
+        .child::<Div, _>(|d| {
+            d.class("w-full max-w-md").child::<Div, _>(|d| {
+                d.class("bg-white rounded-lg shadow-sm border border-gray-200")
+                    .raw(header.render())
+                    .child::<Div, _>(|d| {
+                        d.class("p-6")
+                            .raw(&error_html)
+                            .child::<Form, _>(|f| {
+                                f.attr("method", "POST")
+                                    .class("space-y-4")
+                                    .child::<Div, _>(|d| {
+                                        d.raw(&username_label_r).raw(&username_input_r)
+                                    })
+                                    .child::<Div, _>(|d| {
+                                        d.raw(&password_label_r).raw(&password_input_r)
+                                    })
+                                    .child::<Div, _>(|d| d.raw(&submit_btn_r))
+                            })
+                            .raw(hint.render())
+                    })
+            })
+        })
+        .render();
 
     render_base("Login", &content, false)
 }
 
-fn render_dashboard(store: &DataStore) -> String {
-    let content = format!(
-        r#"<h1 class="text-2xl font-semibold text-gray-900 mb-6">Dashboard</h1>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-blue-600 text-white rounded-lg shadow-sm p-6">
-                <h5 class="text-lg font-medium opacity-90">Posts</h5>
-                <p class="text-4xl font-bold mt-2" data-model="posts">
-                    <span class="count">{post_count}</span>
-                </p>
-                <a href="/admin/posts/"
-                   class="inline-block mt-4 px-4 py-2 bg-white text-blue-600 text-sm
-                          font-medium rounded-lg hover:bg-gray-100
-                          transition-colors duration-200">
-                    View all
-                </a>
-            </div>
-            <div class="bg-green-600 text-white rounded-lg shadow-sm p-6">
-                <h5 class="text-lg font-medium opacity-90">Comments</h5>
-                <p class="text-4xl font-bold mt-2" data-model="comments">
-                    <span class="count">{comment_count}</span>
-                </p>
-                <a href="/admin/comments/"
-                   class="inline-block mt-4 px-4 py-2 bg-white text-green-600 text-sm
-                          font-medium rounded-lg hover:bg-gray-100
-                          transition-colors duration-200">
-                    View all
-                </a>
-            </div>
-            <div class="bg-cyan-600 text-white rounded-lg shadow-sm p-6">
-                <h5 class="text-lg font-medium opacity-90">Tags</h5>
-                <p class="text-4xl font-bold mt-2" data-model="tags">
-                    <span class="count">{tag_count}</span>
-                </p>
-                <a href="/admin/tags/"
-                   class="inline-block mt-4 px-4 py-2 bg-white text-cyan-600 text-sm
-                          font-medium rounded-lg hover:bg-gray-100
-                          transition-colors duration-200">
-                    View all
-                </a>
-            </div>
-        </div>"#,
-        post_count = store.posts.len(),
-        comment_count = store.comments.len(),
-        tag_count = store.tags.len(),
+fn render_dashboard_card(
+    bg: &str,
+    text_color: &str,
+    label: &str,
+    count: usize,
+    href: &str,
+    data_model: &str,
+) -> String {
+    let count_str = count.to_string();
+    let card_class = format!("{} text-white rounded-lg shadow-sm p-6", bg);
+    let btn_class = format!(
+        "inline-block mt-4 px-4 py-2 bg-white {} text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors duration-200",
+        text_color
     );
+    let heading = html! {
+        h5.class("text-lg font-medium opacity-90") { #label }
+    };
+    let count_el = html! {
+        p.class("text-4xl font-bold mt-2").data_model(#data_model) {
+            span.class("count") { #count_str }
+        }
+    };
+    let link = html! {
+        a.href(#href).class(#btn_class) { "View all" }
+    };
+    (html! {
+        div.class(#card_class) {}
+    })
+    .raw(heading.render())
+    .raw(count_el.render())
+    .raw(link.render())
+    .render()
+}
+
+fn render_dashboard(store: &DataStore) -> String {
+    let mut cards = String::new();
+    cards.push_str(&render_dashboard_card(
+        "bg-blue-600",
+        "text-blue-600",
+        "Posts",
+        store.posts.len(),
+        "/admin/posts/",
+        "posts",
+    ));
+    cards.push_str(&render_dashboard_card(
+        "bg-green-600",
+        "text-green-600",
+        "Comments",
+        store.comments.len(),
+        "/admin/comments/",
+        "comments",
+    ));
+    cards.push_str(&render_dashboard_card(
+        "bg-cyan-600",
+        "text-cyan-600",
+        "Tags",
+        store.tags.len(),
+        "/admin/tags/",
+        "tags",
+    ));
+
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 mb-6") { "Dashboard" }
+    };
+    let content = Element::<Div>::new()
+        .raw(heading.render())
+        .child::<Div, _>(|d| d.class("grid grid-cols-1 md:grid-cols-3 gap-6").raw(&cards))
+        .render();
 
     render_base("Dashboard", &content, true)
 }
@@ -794,180 +1216,219 @@ fn render_post_list(
     let start = (page - 1) * per_page;
     let page_posts: Vec<_> = posts.iter().skip(start).take(per_page).collect();
 
-    let rows: String = page_posts
-        .iter()
-        .map(|p| {
-            let badge_class = if p.status == "published" {
-                "bg-green-100 text-green-800"
-            } else {
-                "bg-gray-100 text-gray-800"
-            };
-            format!(
-                r#"<tr class="border-b border-gray-100 hover:bg-gray-50">
-                    <td class="px-4 py-3">
-                        <input type="checkbox" name="selected" value="{}"
-                               class="rounded border-gray-300">
-                    </td>
-                    <td class="px-4 py-3 text-gray-600">{}</td>
-                    <td class="px-4 py-3">
-                        <a href="/admin/posts/{}/change/"
-                           class="text-blue-600 hover:text-blue-800 font-medium">{}</a>
-                    </td>
-                    <td class="px-4 py-3">
-                        <span class="px-2 py-1 text-xs font-medium rounded-full {}">{}</span>
-                    </td>
-                    <td class="px-4 py-3 text-gray-500 text-sm">{}</td>
-                    <td class="px-4 py-3 space-x-2">
-                        <a href="/admin/posts/{}/change/"
-                           class="px-3 py-1 text-sm border border-blue-600 text-blue-600
-                                  rounded hover:bg-blue-50 transition-colors duration-200">
-                            Edit
-                        </a>
-                        <a href="/admin/posts/{}/delete/"
-                           class="px-3 py-1 text-sm border border-red-600 text-red-600
-                                  rounded hover:bg-red-50 transition-colors duration-200">
-                            Delete
-                        </a>
-                    </td>
-                </tr>"#,
-                p.id,
-                p.id,
-                p.id,
-                html_escape(&p.title),
-                badge_class,
-                p.status,
-                p.created_at,
-                p.id,
-                p.id,
-            )
-        })
-        .collect();
+    let th_class = "px-4 py-3 text-left text-sm font-medium text-gray-600";
+    let edit_btn_class = "px-3 py-1 text-sm border border-blue-600 text-blue-600 rounded hover:bg-blue-50 transition-colors duration-200";
+    let del_btn_class = "px-3 py-1 text-sm border border-red-600 text-red-600 rounded hover:bg-red-50 transition-colors duration-200";
 
-    let pagination = if total_pages > 1 {
-        let mut pag =
-            String::from(r#"<nav class="mt-6 flex justify-center"><div class="flex gap-1">"#);
-        for i in 1..=total_pages {
-            let active_class = if i == page {
-                "bg-blue-600 text-white"
-            } else {
-                "bg-white text-gray-700 hover:bg-gray-50"
-            };
-            pag.push_str(&format!(
-                r#"<a href="?page={}"
-                   class="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg {}">{}</a>"#,
-                i, active_class, i
-            ));
-        }
-        pag.push_str("</div></nav>");
-        pag
-    } else {
-        String::new()
-    };
-
-    let status_selected = |s: &str| {
-        if status_filter == Some(s) {
-            "selected"
+    let mut rows = String::new();
+    for p in &page_posts {
+        let badge_class = if p.status == "published" {
+            "bg-green-100 text-green-800"
         } else {
-            ""
-        }
+            "bg-gray-100 text-gray-800"
+        };
+        let id_str = p.id.to_string();
+        let edit_url = format!("/admin/posts/{}/change/", p.id);
+        let del_url = format!("/admin/posts/{}/delete/", p.id);
+        let checkbox = html! {
+            input.type_("checkbox").name("selected").value(#&id_str).class("rounded border-gray-300")
+        };
+        let title_ref = &p.title;
+        let title_link = html! {
+            a.href(#&edit_url).class("text-blue-600 hover:text-blue-800 font-medium") { #title_ref }
+        };
+        let badge_cls = format!("px-2 py-1 text-xs font-medium rounded-full {}", badge_class);
+        let status_ref = &p.status;
+        let badge = html! {
+            span.class(#badge_cls) { #status_ref }
+        };
+        let edit_link = html! {
+            a.href(#&edit_url).class(#edit_btn_class) { "Edit" }
+        };
+        let del_link = html! {
+            a.href(#del_url).class(#del_btn_class) { "Delete" }
+        };
+        let checkbox_r = checkbox.render();
+        let title_link_r = title_link.render();
+        let badge_r = badge.render();
+        let edit_link_r = edit_link.render();
+        let del_link_r = del_link.render();
+        let created_ref = &p.created_at;
+        Element::<Tr>::new()
+            .class("border-b border-gray-100 hover:bg-gray-50")
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&checkbox_r))
+            .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-600").text(&id_str))
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&title_link_r))
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&badge_r))
+            .child::<Td, _>(|td| {
+                td.class("px-4 py-3 text-gray-500 text-sm")
+                    .text(created_ref)
+            })
+            .child::<Td, _>(|td| {
+                td.class("px-4 py-3 space-x-2")
+                    .raw(&edit_link_r)
+                    .raw(&del_link_r)
+            })
+            .render_to(&mut rows);
+    }
+
+    let pagination = render_pagination_nav(page, total_pages);
+
+    let pub_selected = status_filter == Some("published");
+    let draft_selected = status_filter == Some("draft");
+
+    let page_heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 page-title") { "Posts" }
     };
-
-    let content = format!(
-        r#"<div class="flex justify-between items-center mb-6">
-            <h1 class="text-2xl font-semibold text-gray-900 page-title">Posts</h1>
-            <a href="/admin/posts/add/"
-               class="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg
-                      hover:bg-blue-700 transition-colors duration-200">
-                + Add Post
-            </a>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-            <div class="p-4">
-                <form class="flex gap-4" method="GET">
-                    <input type="search" name="q"
-                           class="flex-1 px-4 py-2 border border-gray-300 rounded-lg
-                                  focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                           placeholder="Search..." value="{search}">
-                    <select name="status"
-                            class="px-4 py-2 border border-gray-300 rounded-lg
-                                   focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                                   filter-select">
-                        <option value="">All statuses</option>
-                        <option value="published" {pub_sel}>Published</option>
-                        <option value="draft" {draft_sel}>Draft</option>
-                    </select>
-                    <button type="submit"
-                            class="px-4 py-2 border border-blue-600 text-blue-600 font-medium
-                                   rounded-lg hover:bg-blue-50 transition-colors duration-200">
-                        Filter
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <form method="POST" action="/admin/posts/action/">
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div class="px-4 py-3 border-b border-gray-200 flex items-center gap-4">
-                    <select name="action"
-                            class="px-3 py-2 border border-gray-300 rounded-lg text-sm
-                                   focus:ring-2 focus:ring-blue-500 action-select">
-                        <option value="">-- Select action --</option>
-                        <option value="delete_selected">Delete selected</option>
-                    </select>
-                    <button type="submit" name="apply_action"
-                            class="px-4 py-2 border border-gray-300 text-gray-700 text-sm
-                                   font-medium rounded-lg hover:bg-gray-50
-                                   transition-colors duration-200">
-                        Apply
-                    </button>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full list-view">
-                        <thead class="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th class="px-4 py-3 text-left w-10">
-                                    <input type="checkbox" id="select-all"
-                                           class="rounded border-gray-300">
-                                </th>
-                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-600"
-                                    data-sortable>
-                                    <a href="?order=id" class="hover:text-gray-900">ID</a>
-                                </th>
-                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-600"
-                                    data-sortable>
-                                    <a href="?order=title" class="hover:text-gray-900">Title</a>
-                                </th>
-                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-600"
-                                    data-sortable>
-                                    <a href="?order=status" class="hover:text-gray-900">Status</a>
-                                </th>
-                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-600"
-                                    data-sortable>
-                                    <a href="?order=created_at" class="hover:text-gray-900">
-                                        Created
-                                    </a>
-                                </th>
-                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-600">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>{rows}</tbody>
-                    </table>
-                </div>
-            </div>
-        </form>
-
-        {pagination}"#,
-        search = html_escape(search),
-        pub_sel = status_selected("published"),
-        draft_sel = status_selected("draft"),
-        rows = rows,
-        pagination = pagination,
-    );
+    let add_btn = html! {
+        a.href("/admin/posts/add/").class("px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200") { "+ Add Post" }
+    };
+    let content = Element::<Div>::new()
+        .child::<Div, _>(|d| {
+            d.class("flex justify-between items-center mb-6")
+                .raw(page_heading.render())
+                .raw(add_btn.render())
+        })
+        .child::<Div, _>(|d| {
+            d.class("bg-white rounded-lg shadow-sm border border-gray-200 mb-6")
+                .child::<Div, _>(|d| {
+                    d.class("p-4").child::<Form, _>(|f| {
+                        f.class("flex gap-4").attr("method", "GET")
+                            .child::<ironhtml_elements::Input, _>(|i| {
+                                i.attr("type", "search").attr("name", "q")
+                                    .class("flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500")
+                                    .attr("placeholder", "Search...").attr("value", search)
+                            })
+                            .child::<SelectEl, _>(|s| {
+                                let s = s.attr("name", "status")
+                                    .class("px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 filter-select")
+                                    .child::<Option_, _>(|o| o.attr("value", "").text("All statuses"));
+                                let s = s.child::<Option_, _>(|o| {
+                                    let o = o.attr("value", "published").text("Published");
+                                    if pub_selected { o.bool_attr("selected") } else { o }
+                                });
+                                s.child::<Option_, _>(|o| {
+                                    let o = o.attr("value", "draft").text("Draft");
+                                    if draft_selected { o.bool_attr("selected") } else { o }
+                                })
+                            })
+                            .child::<ironhtml_elements::Button, _>(|b| {
+                                b.attr("type", "submit")
+                                    .class("px-4 py-2 border border-blue-600 text-blue-600 font-medium rounded-lg hover:bg-blue-50 transition-colors duration-200")
+                                    .text("Filter")
+                            })
+                    })
+                })
+        })
+        .raw(render_action_form_wrapper(
+            "/admin/posts/action/",
+            &["ID", "Title", "Status", "Created", "Actions"],
+            &[Some("?order=id"), Some("?order=title"), Some("?order=status"), Some("?order=created_at"), None],
+            &rows,
+            th_class,
+        ))
+        .raw(&pagination)
+        .render();
 
     render_base("Posts", &content, true)
+}
+
+fn render_action_form_wrapper(
+    action_url: &str,
+    headers: &[&str],
+    sort_links: &[Option<&str>],
+    rows_html: &str,
+    th_class: &str,
+) -> String {
+    // Build header cells as raw HTML (Th elements)
+    let mut header_cells = String::new();
+    let select_all_th = html! {
+        th.class("px-4 py-3 text-left w-10") {
+            input.type_("checkbox").id("select-all").class("rounded border-gray-300")
+        }
+    };
+    select_all_th.render_to(&mut header_cells);
+    for (h, link) in headers.iter().zip(sort_links.iter()) {
+        if let Some(href) = link {
+            let href_val = *href;
+            let h_val = *h;
+            let sort_link = html! {
+                a.href(#href_val).class("hover:text-gray-900") { #h_val }
+            };
+            Element::<Th>::new()
+                .class(th_class)
+                .bool_attr("data-sortable")
+                .raw(sort_link.render())
+                .render_to(&mut header_cells);
+        } else {
+            Element::<Th>::new()
+                .class(th_class)
+                .text(*h)
+                .render_to(&mut header_cells);
+        }
+    }
+
+    // Build table as raw HTML since Tr/Tbody can't use .raw()
+    let table_html = format!(
+        "<table class=\"w-full list-view\">\
+         <thead class=\"bg-gray-50 border-b border-gray-200\">\
+         <tr>{header_cells}</tr></thead>\
+         <tbody>{rows_html}</tbody></table>"
+    );
+
+    let apply_btn = html! {
+        button.type_("submit").name("apply_action").class("px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200") { "Apply" }
+    };
+    let apply_btn_r = apply_btn.render();
+
+    Element::<Form>::new()
+        .attr("method", "POST")
+        .attr("action", action_url)
+        .child::<Div, _>(|d| {
+            d.class("bg-white rounded-lg shadow-sm border border-gray-200")
+                .child::<Div, _>(|d| {
+                    d.class("px-4 py-3 border-b border-gray-200 flex items-center gap-4")
+                        .child::<SelectEl, _>(|s| {
+                            s.attr("name", "action")
+                                .class("px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 action-select")
+                                .child::<Option_, _>(|o| o.attr("value", "").text("-- Select action --"))
+                                .child::<Option_, _>(|o| {
+                                    o.attr("value", "delete_selected").text("Delete selected")
+                                })
+                        })
+                        .raw(&apply_btn_r)
+                })
+                .child::<Div, _>(|d| d.class("overflow-x-auto").raw(&table_html))
+        })
+        .render()
+}
+
+fn render_pagination_nav(page: usize, total_pages: usize) -> String {
+    if total_pages <= 1 {
+        return String::new();
+    }
+    let mut links = String::new();
+    for i in 1..=total_pages {
+        let active_class = if i == page {
+            "bg-blue-600 text-white"
+        } else {
+            "bg-white text-gray-700 hover:bg-gray-50"
+        };
+        let href = format!("?page={}", i);
+        let i_str = i.to_string();
+        let link_class = format!(
+            "px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg {}",
+            active_class
+        );
+        let link = html! {
+            a.href(#href).class(#link_class) { #i_str }
+        };
+        link.render_to(&mut links);
+    }
+    Element::<Nav>::new()
+        .class("mt-6 flex justify-center")
+        .child::<Div, _>(|d| d.class("flex gap-1").raw(&links))
+        .render()
 }
 
 fn render_post_form(post: Option<&Post>, error: Option<&str>) -> String {
@@ -985,170 +1446,489 @@ fn render_post_form(post: Option<&Post>, error: Option<&str>) -> String {
         })
         .unwrap_or(("", "", "", "draft"));
 
-    let error_html = error
-        .map(|e| {
-            format!(
-                r#"<div class="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-                    {}
-                </div>"#,
-                e
-            )
+    let input_class = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200";
+    let label_class = "block text-sm font-medium text-gray-700 mb-1";
+    let error_html = render_error_alert(error);
+    let delete_btn = post.map(|p| {
+        let href = format!("/admin/posts/{}/delete/", p.id);
+        (html! {
+            a.href(#href).class("ml-auto px-4 py-2 border border-red-600 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors duration-200") { "Delete" }
+        }).render()
+    }).unwrap_or_default();
+
+    let draft_selected = post_status == "draft";
+    let pub_selected = post_status == "published";
+
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 mb-6") { #title }
+    };
+    let content_header = html! {
+        div.class("px-6 py-4 border-b border-gray-200") {
+            h5.class("text-lg font-medium text-gray-900") { "Content" }
+        }
+    };
+    let title_label = html! {
+        label.for_("title").class(#label_class) { "Title *" }
+    };
+    let title_input = html! {
+        input.type_("text").id("title").name("title").required.class(#input_class).value(#post_title)
+    };
+    let slug_label = html! {
+        label.for_("slug").class(#label_class) { "Slug" }
+    };
+    let slug_input = html! {
+        input.type_("text").id("slug").name("slug").class(#input_class).value(#post_slug)
+    };
+    let content_label = html! {
+        label.for_("content").class(#label_class) { "Content" }
+    };
+    let content_textarea = html! {
+        textarea.id("content").name("content").rows("10").class(#input_class) { #post_content }
+    };
+    let pub_header = html! {
+        div.class("px-6 py-4 border-b border-gray-200") {
+            h5.class("text-lg font-medium text-gray-900") { "Publishing" }
+        }
+    };
+    let status_label = html! {
+        label.for_("status").class(#label_class) { "Status" }
+    };
+    let title_label_r = title_label.render();
+    let title_input_r = title_input.render();
+    let slug_label_r = slug_label.render();
+    let slug_input_r = slug_input.render();
+    let content_label_r = content_label.render();
+    let content_textarea_r = content_textarea.render();
+    let status_label_r = status_label.render();
+
+    let content = Element::<Div>::new()
+        .raw(heading.render())
+        .raw(&error_html)
+        .child::<Form, _>(|f| {
+            f.attr("method", "POST")
+                .class("space-y-6")
+                .child::<Div, _>(|d| {
+                    d.class("bg-white rounded-lg shadow-sm border border-gray-200")
+                        .raw(content_header.render())
+                        .child::<Div, _>(|d| {
+                            d.class("p-6 space-y-4")
+                                .child::<Div, _>(|d| d.raw(&title_label_r).raw(&title_input_r))
+                                .child::<Div, _>(|d| d.raw(&slug_label_r).raw(&slug_input_r))
+                                .child::<Div, _>(|d| {
+                                    d.raw(&content_label_r).raw(&content_textarea_r)
+                                })
+                        })
+                })
+                .child::<Div, _>(|d| {
+                    d.class("bg-white rounded-lg shadow-sm border border-gray-200")
+                        .raw(pub_header.render())
+                        .child::<Div, _>(|d| {
+                            d.class("p-6").child::<Div, _>(|d| {
+                                d.raw(&status_label_r).child::<SelectEl, _>(|s| {
+                                    s.id("status")
+                                        .attr("name", "status")
+                                        .class(input_class)
+                                        .child::<Option_, _>(|o| {
+                                            let o = o.attr("value", "draft").text("Draft");
+                                            if draft_selected {
+                                                o.bool_attr("selected")
+                                            } else {
+                                                o
+                                            }
+                                        })
+                                        .child::<Option_, _>(|o| {
+                                            let o = o.attr("value", "published").text("Published");
+                                            if pub_selected {
+                                                o.bool_attr("selected")
+                                            } else {
+                                                o
+                                            }
+                                        })
+                                })
+                            })
+                        })
+                })
+                .child::<Div, _>(|d| d.raw(render_form_buttons("/admin/posts/", &delete_btn)))
         })
-        .unwrap_or_default();
-
-    let draft_sel = if post_status == "draft" {
-        "selected"
-    } else {
-        ""
-    };
-    let pub_sel = if post_status == "published" {
-        "selected"
-    } else {
-        ""
-    };
-    let delete_btn = if let Some(p) = post {
-        format!(
-            r#"<a href="/admin/posts/{}/delete/"
-               class="ml-auto px-4 py-2 border border-red-600 text-red-600 font-medium
-                      rounded-lg hover:bg-red-50 transition-colors duration-200">
-                Delete
-            </a>"#,
-            p.id
-        )
-    } else {
-        String::new()
-    };
-
-    let input_class = "w-full px-4 py-2 border border-gray-300 rounded-lg \
-                       focus:ring-2 focus:ring-blue-500 focus:border-blue-500 \
-                       transition-colors duration-200";
-
-    let content = format!(
-        r##"<h1 class="text-2xl font-semibold text-gray-900 mb-6">{title}</h1>
-
-        {error_html}
-
-        <form method="POST" class="space-y-6">
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h5 class="text-lg font-medium text-gray-900">Content</h5>
-                </div>
-                <div class="p-6 space-y-4">
-                    <div>
-                        <label for="title"
-                               class="block text-sm font-medium text-gray-700 mb-1">
-                            Title *
-                        </label>
-                        <input type="text" id="title" name="title" required
-                               class="{input_class}" value="{post_title}">
-                    </div>
-                    <div>
-                        <label for="slug"
-                               class="block text-sm font-medium text-gray-700 mb-1">
-                            Slug
-                        </label>
-                        <input type="text" id="slug" name="slug"
-                               class="{input_class}" value="{post_slug}">
-                    </div>
-                    <div>
-                        <label for="content"
-                               class="block text-sm font-medium text-gray-700 mb-1">
-                            Content
-                        </label>
-                        <textarea id="content" name="content" rows="10"
-                                  class="{input_class}">{post_content}</textarea>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h5 class="text-lg font-medium text-gray-900">Publishing</h5>
-                </div>
-                <div class="p-6">
-                    <div>
-                        <label for="status"
-                               class="block text-sm font-medium text-gray-700 mb-1">
-                            Status
-                        </label>
-                        <select id="status" name="status" class="{input_class}">
-                            <option value="draft" {draft_sel}>Draft</option>
-                            <option value="published" {pub_sel}>Published</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex gap-4">
-                <button type="submit"
-                        class="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg
-                               hover:bg-blue-700 focus:ring-2 focus:ring-blue-500
-                               focus:ring-offset-2 transition-colors duration-200">
-                    Save
-                </button>
-                <a href="/admin/posts/"
-                   class="px-6 py-2 border border-gray-300 text-gray-700 font-medium
-                          rounded-lg hover:bg-gray-50 transition-colors duration-200">
-                    Cancel
-                </a>
-                {delete_btn}
-            </div>
-        </form>"##,
-        title = title,
-        error_html = error_html,
-        input_class = input_class,
-        post_title = html_escape(post_title),
-        post_slug = html_escape(post_slug),
-        post_content = html_escape(post_content),
-        draft_sel = draft_sel,
-        pub_sel = pub_sel,
-        delete_btn = delete_btn,
-    );
+        .render();
 
     render_base(title, &content, true)
 }
 
-fn render_delete_confirmation(post: &Post) -> String {
-    let content = format!(
-        r#"<h1 class="text-2xl font-semibold text-gray-900 mb-6">Delete Post</h1>
-
-        <div class="delete-confirmation max-w-2xl">
-            <div class="bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6">
-                <h4 class="text-lg font-semibold text-amber-800 mb-2">Are you sure?</h4>
-                <p class="text-amber-700 mb-2">
-                    You are about to delete the post:
-                    <strong class="font-semibold">{}</strong>
-                </p>
-                <p class="text-amber-700">This action cannot be undone.</p>
-            </div>
-
-            <form method="POST" class="flex gap-4">
-                <button type="submit"
-                        class="px-6 py-2 bg-red-600 text-white font-medium rounded-lg
-                               hover:bg-red-700 focus:ring-2 focus:ring-red-500
-                               focus:ring-offset-2 transition-colors duration-200">
-                    Confirm Delete
-                </button>
-                <a href="/admin/posts/{}/change/"
-                   class="px-6 py-2 border border-gray-300 text-gray-700 font-medium
-                          rounded-lg hover:bg-gray-50 transition-colors duration-200">
-                    Cancel
-                </a>
-            </form>
-        </div>"#,
-        html_escape(&post.title),
-        post.id,
-    );
-
-    render_base("Delete Post", &content, true)
+fn render_error_alert(error: Option<&str>) -> String {
+    error
+        .map(|e| {
+            (html! {
+                div.class("mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg") {
+                    #e
+                }
+            })
+            .render()
+        })
+        .unwrap_or_default()
 }
 
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
+fn render_form_buttons(cancel_url: &str, delete_btn_html: &str) -> String {
+    let save_btn = html! {
+        button.type_("submit").class("px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200") { "Save" }
+    };
+    let cancel_link = html! {
+        a.href(#cancel_url).class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200") { "Cancel" }
+    };
+    (html! { div.class("flex gap-4") {} })
+        .raw(save_btn.render())
+        .raw(cancel_link.render())
+        .raw(delete_btn_html)
+        .render()
+}
+
+fn render_delete_page(
+    page_title: &str,
+    item_label: &str,
+    item_name: &str,
+    cancel_url: &str,
+) -> String {
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 mb-6") { #page_title }
+    };
+    let msg = format!("You are about to delete the {}: ", item_label);
+    let warning = html! {
+        div.class("bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6") {
+            h4.class("text-lg font-semibold text-amber-800 mb-2") { "Are you sure?" }
+            p.class("text-amber-700 mb-2") {
+                #msg
+                strong.class("font-semibold") { #item_name }
+            }
+            p.class("text-amber-700") { "This action cannot be undone." }
+        }
+    };
+    let confirm_btn = html! {
+        button.type_("submit").class("px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200") { "Confirm Delete" }
+    };
+    let cancel_link = html! {
+        a.href(#cancel_url).class("px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200") { "Cancel" }
+    };
+    let confirm_btn_r = confirm_btn.render();
+    let cancel_link_r = cancel_link.render();
+    let content = Element::<Div>::new()
+        .raw(heading.render())
+        .child::<Div, _>(|d| {
+            d.class("delete-confirmation max-w-2xl")
+                .raw(warning.render())
+                .child::<Form, _>(|f| {
+                    f.attr("method", "POST")
+                        .class("flex gap-4")
+                        .child::<Div, _>(|d| d.raw(&confirm_btn_r).raw(&cancel_link_r))
+                })
+        })
+        .render();
+    render_base(page_title, &content, true)
+}
+
+fn render_delete_confirmation(post: &Post) -> String {
+    let cancel_url = format!("/admin/posts/{}/change/", post.id);
+    render_delete_page("Delete Post", "post", &post.title, &cancel_url)
+}
+
+fn render_list_page(
+    title: &str,
+    add_url: &str,
+    search: &str,
+    action_url: &str,
+    headers: &[&str],
+    rows_html: &str,
+) -> String {
+    let th_class = "px-4 py-3 text-left text-sm font-medium text-gray-600";
+    let no_sort: Vec<Option<&str>> = headers.iter().map(|_| None).collect();
+
+    let add_label = format!("+ Add {}", title.trim_end_matches('s'));
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900") { #title }
+    };
+    let add_btn = html! {
+        a.href(#add_url).class("px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200") { #add_label }
+    };
+
+    let content = Element::<Div>::new()
+        .child::<Div, _>(|d| {
+            d.class("flex justify-between items-center mb-6")
+                .raw(heading.render())
+                .raw(add_btn.render())
+        })
+        .child::<Div, _>(|d| {
+            d.class("bg-white rounded-lg shadow-sm border border-gray-200 mb-6")
+                .child::<Div, _>(|d| {
+                    d.class("p-4").child::<Form, _>(|f| {
+                        f.class("flex gap-4").attr("method", "GET")
+                            .child::<ironhtml_elements::Input, _>(|i| {
+                                i.attr("type", "search").attr("name", "q")
+                                    .class("flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500")
+                                    .attr("placeholder", "Search...").attr("value", search)
+                            })
+                            .child::<ironhtml_elements::Button, _>(|b| {
+                                b.attr("type", "submit")
+                                    .class("px-4 py-2 border border-blue-600 text-blue-600 font-medium rounded-lg hover:bg-blue-50 transition-colors duration-200")
+                                    .text("Filter")
+                            })
+                    })
+                })
+        })
+        .raw(render_action_form_wrapper(action_url, headers, &no_sort, rows_html, th_class))
+        .render();
+
+    render_base(title, &content, true)
+}
+
+fn render_comment_list(comments: &[&Comment], search: &str) -> String {
+    let edit_btn = "px-3 py-1 text-sm border border-blue-600 text-blue-600 rounded hover:bg-blue-50 transition-colors duration-200";
+    let del_btn = "px-3 py-1 text-sm border border-red-600 text-red-600 rounded hover:bg-red-50 transition-colors duration-200";
+
+    let mut rows = String::new();
+    for c in comments {
+        let id_str = c.id.to_string();
+        let post_id_str = c.post_id.to_string();
+        let edit_url = format!("/admin/comments/{}/change/", c.id);
+        let del_url = format!("/admin/comments/{}/delete/", c.id);
+        let checkbox = html! {
+            input.type_("checkbox").name("selected").value(#&id_str).class("rounded border-gray-300")
+        };
+        let id_link = html! {
+            a.href(#&edit_url).class("text-blue-600 hover:text-blue-800 font-medium") { #&id_str }
+        };
+        let edit_link = html! {
+            a.href(#&edit_url).class(#edit_btn) { "Edit" }
+        };
+        let del_link = html! {
+            a.href(#del_url).class(#del_btn) { "Delete" }
+        };
+        let checkbox_r = checkbox.render();
+        let id_link_r = id_link.render();
+        let edit_link_r = edit_link.render();
+        let del_link_r = del_link.render();
+        let author_ref = &c.author;
+        let created_ref = &c.created_at;
+        Element::<Tr>::new()
+            .class("border-b border-gray-100 hover:bg-gray-50")
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&checkbox_r))
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&id_link_r))
+            .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-600").text(&post_id_str))
+            .child::<Td, _>(|td| td.class("px-4 py-3").text(author_ref))
+            .child::<Td, _>(|td| {
+                td.class("px-4 py-3 text-gray-500 text-sm")
+                    .text(created_ref)
+            })
+            .child::<Td, _>(|td| {
+                td.class("px-4 py-3 space-x-2")
+                    .raw(&edit_link_r)
+                    .raw(&del_link_r)
+            })
+            .render_to(&mut rows);
+    }
+
+    render_list_page(
+        "Comments",
+        "/admin/comments/add/",
+        search,
+        "/admin/comments/action/",
+        &["ID", "Post ID", "Author", "Created", "Actions"],
+        &rows,
+    )
+}
+
+fn render_comment_form(comment: Option<&Comment>, error: Option<&str>) -> String {
+    let is_new = comment.is_none();
+    let title = if is_new {
+        "Add Comment"
+    } else {
+        "Edit Comment"
+    };
+
+    let (c_post_id, c_author, c_content) = comment
+        .map(|c| (c.post_id.to_string(), c.author.clone(), c.content.clone()))
+        .unwrap_or(("0".to_string(), String::new(), String::new()));
+
+    let input_class = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200";
+    let label_class = "block text-sm font-medium text-gray-700 mb-1";
+    let error_html = render_error_alert(error);
+    let delete_btn = comment.map(|c| {
+        let href = format!("/admin/comments/{}/delete/", c.id);
+        (html! {
+            a.href(#href).class("ml-auto px-4 py-2 border border-red-600 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors duration-200") { "Delete" }
+        }).render()
+    }).unwrap_or_default();
+
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 mb-6") { #title }
+    };
+    let section_header = html! {
+        div.class("px-6 py-4 border-b border-gray-200") {
+            h5.class("text-lg font-medium text-gray-900") { "Comment Details" }
+        }
+    };
+    let post_id_label = html! {
+        label.for_("post_id").class(#label_class) { "Post ID" }
+    };
+    let post_id_input = html! {
+        input.type_("number").id("post_id").name("post_id").class(#input_class).value(#c_post_id)
+    };
+    let author_label = html! {
+        label.for_("author").class(#label_class) { "Author *" }
+    };
+    let author_input = html! {
+        input.type_("text").id("author").name("author").required.class(#input_class).value(#c_author)
+    };
+    let content_label = html! {
+        label.for_("content").class(#label_class) { "Content" }
+    };
+    let content_textarea = html! {
+        textarea.id("content").name("content").rows("6").class(#input_class) { #c_content }
+    };
+    let post_id_label_r = post_id_label.render();
+    let post_id_input_r = post_id_input.render();
+    let author_label_r = author_label.render();
+    let author_input_r = author_input.render();
+    let content_label_r = content_label.render();
+    let content_textarea_r = content_textarea.render();
+
+    let content = Element::<Div>::new()
+        .raw(heading.render())
+        .raw(&error_html)
+        .child::<Form, _>(|f| {
+            f.attr("method", "POST")
+                .class("space-y-6")
+                .child::<Div, _>(|d| {
+                    d.class("bg-white rounded-lg shadow-sm border border-gray-200")
+                        .raw(section_header.render())
+                        .child::<Div, _>(|d| {
+                            d.class("p-6 space-y-4")
+                                .child::<Div, _>(|d| d.raw(&post_id_label_r).raw(&post_id_input_r))
+                                .child::<Div, _>(|d| d.raw(&author_label_r).raw(&author_input_r))
+                                .child::<Div, _>(|d| {
+                                    d.raw(&content_label_r).raw(&content_textarea_r)
+                                })
+                        })
+                })
+                .child::<Div, _>(|d| d.raw(render_form_buttons("/admin/comments/", &delete_btn)))
+        })
+        .render();
+
+    render_base(title, &content, true)
+}
+
+fn render_tag_list(tags: &[&Tag], search: &str) -> String {
+    let edit_btn = "px-3 py-1 text-sm border border-blue-600 text-blue-600 rounded hover:bg-blue-50 transition-colors duration-200";
+    let del_btn = "px-3 py-1 text-sm border border-red-600 text-red-600 rounded hover:bg-red-50 transition-colors duration-200";
+
+    let mut rows = String::new();
+    for t in tags {
+        let id_str = t.id.to_string();
+        let edit_url = format!("/admin/tags/{}/change/", t.id);
+        let del_url = format!("/admin/tags/{}/delete/", t.id);
+        let checkbox = html! {
+            input.type_("checkbox").name("selected").value(#&id_str).class("rounded border-gray-300")
+        };
+        let name_ref = &t.name;
+        let name_link = html! {
+            a.href(#&edit_url).class("text-blue-600 hover:text-blue-800 font-medium") { #name_ref }
+        };
+        let edit_link = html! {
+            a.href(#&edit_url).class(#edit_btn) { "Edit" }
+        };
+        let del_link = html! {
+            a.href(#del_url).class(#del_btn) { "Delete" }
+        };
+        let checkbox_r = checkbox.render();
+        let name_link_r = name_link.render();
+        let edit_link_r = edit_link.render();
+        let del_link_r = del_link.render();
+        let slug_ref = &t.slug;
+        Element::<Tr>::new()
+            .class("border-b border-gray-100 hover:bg-gray-50")
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&checkbox_r))
+            .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-600").text(&id_str))
+            .child::<Td, _>(|td| td.class("px-4 py-3").raw(&name_link_r))
+            .child::<Td, _>(|td| td.class("px-4 py-3 text-gray-500").text(slug_ref))
+            .child::<Td, _>(|td| {
+                td.class("px-4 py-3 space-x-2")
+                    .raw(&edit_link_r)
+                    .raw(&del_link_r)
+            })
+            .render_to(&mut rows);
+    }
+
+    render_list_page(
+        "Tags",
+        "/admin/tags/add/",
+        search,
+        "/admin/tags/action/",
+        &["ID", "Name", "Slug", "Actions"],
+        &rows,
+    )
+}
+
+fn render_tag_form(tag: Option<&Tag>, error: Option<&str>) -> String {
+    let is_new = tag.is_none();
+    let title = if is_new { "Add Tag" } else { "Edit Tag" };
+
+    let (t_name, t_slug) = tag
+        .map(|t| (t.name.as_str(), t.slug.as_str()))
+        .unwrap_or(("", ""));
+
+    let input_class = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200";
+    let label_class = "block text-sm font-medium text-gray-700 mb-1";
+    let error_html = render_error_alert(error);
+    let delete_btn = tag.map(|t| {
+        let href = format!("/admin/tags/{}/delete/", t.id);
+        (html! {
+            a.href(#href).class("ml-auto px-4 py-2 border border-red-600 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors duration-200") { "Delete" }
+        }).render()
+    }).unwrap_or_default();
+
+    let heading = html! {
+        h1.class("text-2xl font-semibold text-gray-900 mb-6") { #title }
+    };
+    let section_header = html! {
+        div.class("px-6 py-4 border-b border-gray-200") {
+            h5.class("text-lg font-medium text-gray-900") { "Tag Details" }
+        }
+    };
+    let name_label = html! {
+        label.for_("name").class(#label_class) { "Name *" }
+    };
+    let name_input = html! {
+        input.type_("text").id("name").name("name").required.class(#input_class).value(#t_name)
+    };
+    let slug_label = html! {
+        label.for_("slug").class(#label_class) { "Slug" }
+    };
+    let slug_input = html! {
+        input.type_("text").id("slug").name("slug").class(#input_class).value(#t_slug)
+    };
+    let name_label_r = name_label.render();
+    let name_input_r = name_input.render();
+    let slug_label_r = slug_label.render();
+    let slug_input_r = slug_input.render();
+
+    let content = Element::<Div>::new()
+        .raw(heading.render())
+        .raw(&error_html)
+        .child::<Form, _>(|f| {
+            f.attr("method", "POST")
+                .class("space-y-6")
+                .child::<Div, _>(|d| {
+                    d.class("bg-white rounded-lg shadow-sm border border-gray-200")
+                        .raw(section_header.render())
+                        .child::<Div, _>(|d| {
+                            d.class("p-6 space-y-4")
+                                .child::<Div, _>(|d| d.raw(&name_label_r).raw(&name_input_r))
+                                .child::<Div, _>(|d| d.raw(&slug_label_r).raw(&slug_input_r))
+                        })
+                })
+                .child::<Div, _>(|d| d.raw(render_form_buttons("/admin/tags/", &delete_btn)))
+        })
+        .render();
+
+    render_base(title, &content, true)
 }
 
 // ============================================================================
@@ -1182,77 +1962,159 @@ async fn is_authenticated(req: &Request, state: &AppState) -> bool {
 // ============================================================================
 
 fn build_router(state: AppState) -> Router {
-    let state_clone = state.clone();
-    let state_clone2 = state.clone();
-    let state_clone3 = state.clone();
-    let state_clone4 = state.clone();
-    let state_clone5 = state.clone();
-    let state_clone6 = state.clone();
+    let s = state.clone();
+    let s2 = state.clone();
+    let s3 = state.clone();
+    let s4 = state.clone();
+    let s5 = state.clone();
+    let s6 = state.clone();
+    let s7 = state.clone();
+    let s8 = state.clone();
+    let s9 = state.clone();
+    let s10 = state.clone();
+    let s11 = state.clone();
+    let s12 = state.clone();
+    let s13 = state.clone();
+    let s14 = state.clone();
+    let s15 = state.clone();
+    let s16 = state.clone();
+    let s17 = state.clone();
+    let s18 = state.clone();
+    let s19 = state.clone();
+    let s20 = state.clone();
+    let s21 = state.clone();
+    let s22 = state.clone();
+    let s23 = state.clone();
+    let s24 = state.clone();
 
     Router::new()
         // Auth routes
         .get("/admin/login", move |req| {
-            let s = state.clone();
-            async move { login_handler(req, s).await }
+            let st = state.clone();
+            async move { login_handler(req, st).await }
         })
         .post("/admin/login", move |req| {
-            let s = state_clone.clone();
-            async move { login_handler(req, s).await }
+            let st = s.clone();
+            async move { login_handler(req, st).await }
         })
         .get("/admin/logout", move |req| {
-            let s = state_clone2.clone();
-            async move { logout_handler(req, s).await }
+            let st = s2.clone();
+            async move { logout_handler(req, st).await }
         })
         // Dashboard
         .get("/admin/", move |req| {
-            let s = state_clone3.clone();
-            async move { dashboard_handler(req, s).await }
+            let st = s3.clone();
+            async move { dashboard_handler(req, st).await }
         })
         // Posts CRUD
         .get("/admin/posts/", move |req| {
-            let s = state_clone4.clone();
-            async move { list_posts_handler(req, s).await }
+            let st = s4.clone();
+            async move { list_posts_handler(req, st).await }
         })
-        .get("/admin/posts/add/", {
-            let s = state_clone5.clone();
+        .post("/admin/posts/action/", move |req| {
+            let st = s5.clone();
+            async move { action_posts_handler(req, st).await }
+        })
+        .get("/admin/posts/add/", move |req| {
+            let st = s6.clone();
+            async move { add_post_handler(req, st).await }
+        })
+        .post("/admin/posts/add/", move |req| {
+            let st = s7.clone();
+            async move { add_post_handler(req, st).await }
+        })
+        .get("/admin/posts/{pk}/change/", move |req| {
+            let st = s8.clone();
+            async move { change_post_handler(req, st).await }
+        })
+        .post("/admin/posts/{pk}/change/", move |req| {
+            let st = s9.clone();
+            async move { change_post_handler(req, st).await }
+        })
+        .get("/admin/posts/{pk}/delete/", move |req| {
+            let st = s10.clone();
+            async move { delete_post_handler(req, st).await }
+        })
+        .post("/admin/posts/{pk}/delete/", move |req| {
+            let st = s11.clone();
+            async move { delete_post_handler(req, st).await }
+        })
+        // Comments CRUD
+        .get("/admin/comments/", move |req| {
+            let st = s12.clone();
+            async move { list_comments_handler(req, st).await }
+        })
+        .post("/admin/comments/action/", move |req| {
+            let st = s13.clone();
+            async move { action_comments_handler(req, st).await }
+        })
+        .get("/admin/comments/add/", move |req| {
+            let st = s14.clone();
+            async move { add_comment_handler(req, st).await }
+        })
+        .post("/admin/comments/add/", move |req| {
+            let st = s15.clone();
+            async move { add_comment_handler(req, st).await }
+        })
+        .get("/admin/comments/{pk}/change/", move |req| {
+            let st = s16.clone();
+            async move { change_comment_handler(req, st).await }
+        })
+        .post("/admin/comments/{pk}/change/", move |req| {
+            let st = s17.clone();
+            async move { change_comment_handler(req, st).await }
+        })
+        .get("/admin/comments/{pk}/delete/", move |req| {
+            let st = s18.clone();
+            async move { delete_comment_handler(req, st).await }
+        })
+        .post("/admin/comments/{pk}/delete/", move |req| {
+            let st = s19.clone();
+            async move { delete_comment_handler(req, st).await }
+        })
+        // Tags CRUD
+        .get("/admin/tags/", move |req| {
+            let st = s20.clone();
+            async move { list_tags_handler(req, st).await }
+        })
+        .post("/admin/tags/action/", move |req| {
+            let st = s21.clone();
+            async move { action_tags_handler(req, st).await }
+        })
+        .get("/admin/tags/add/", move |req| {
+            let st = s22.clone();
+            async move { add_tag_handler(req, st).await }
+        })
+        .post("/admin/tags/add/", move |req| {
+            let st = s23.clone();
+            async move { add_tag_handler(req, st).await }
+        })
+        .get("/admin/tags/{pk}/change/", {
+            let st = s24.clone();
             move |req| {
-                let s = s.clone();
-                async move { add_post_handler(req, s).await }
+                let st = st.clone();
+                async move { change_tag_handler(req, st).await }
             }
         })
-        .post("/admin/posts/add/", {
-            let s = state_clone5.clone();
+        .post("/admin/tags/{pk}/change/", {
+            let st = s24.clone();
             move |req| {
-                let s = s.clone();
-                async move { add_post_handler(req, s).await }
+                let st = st.clone();
+                async move { change_tag_handler(req, st).await }
             }
         })
-        .get("/admin/posts/{pk}/change/", {
-            let s = state_clone5.clone();
+        .get("/admin/tags/{pk}/delete/", {
+            let st = s24.clone();
             move |req| {
-                let s = s.clone();
-                async move { change_post_handler(req, s).await }
+                let st = st.clone();
+                async move { delete_tag_handler(req, st).await }
             }
         })
-        .post("/admin/posts/{pk}/change/", {
-            let s = state_clone5.clone();
+        .post("/admin/tags/{pk}/delete/", {
+            let st = s24.clone();
             move |req| {
-                let s = s.clone();
-                async move { change_post_handler(req, s).await }
-            }
-        })
-        .get("/admin/posts/{pk}/delete/", {
-            let s = state_clone6.clone();
-            move |req| {
-                let s = s.clone();
-                async move { delete_post_handler(req, s).await }
-            }
-        })
-        .post("/admin/posts/{pk}/delete/", {
-            let s = state_clone6.clone();
-            move |req| {
-                let s = s.clone();
-                async move { delete_post_handler(req, s).await }
+                let st = st.clone();
+                async move { delete_tag_handler(req, st).await }
             }
         })
         // Redirect root to admin

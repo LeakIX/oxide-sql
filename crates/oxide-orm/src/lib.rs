@@ -11,64 +11,17 @@
 //!
 //! ## Quick Start
 //!
-//! ```ignore
-//! use oxide_orm::{Model, Q};
-//! use sqlx::SqlitePool;
-//!
-//! #[derive(Model)]
-//! #[model(table = "users")]
-//! struct User {
-//!     #[field(primary_key, auto)]
-//!     id: i64,
-//!     #[field(max_length = 150)]
-//!     username: String,
-//!     email: String,
-//!     is_active: bool,
-//! }
-//!
-//! async fn example(pool: &SqlitePool) -> oxide_orm::Result<()> {
-//!     // Get all active users
-//!     let users = User::objects()
-//!         .filter(Q::eq("is_active", true))
-//!         .order_by("-id")
-//!         .execute(pool)
-//!         .await?;
-//!
-//!     // Get a specific user
-//!     let user = User::objects().get(pool, 1).await?;
-//!
-//!     // Count users
-//!     let count = User::objects().all().count(pool).await?;
-//!
-//!     Ok(())
-//! }
-//! ```
+//! Define a model by implementing the [`Model`] trait (or use a derive
+//! macro), then use [`Manager`] and [`QuerySet`] for database operations.
+//! See the [`Model`] trait docs for the full API.
 //!
 //! ## QuerySet Operations
 //!
-//! QuerySets are lazy and chainable:
-//!
-//! ```ignore
-//! // Chaining operations
-//! let qs = User::objects()
-//!     .filter(Q::eq("is_active", true))
-//!     .exclude(Q::eq("role", "banned"))
-//!     .order_by("-created_at")
-//!     .limit(10);
-//!
-//! // Execute when needed
-//! let users = qs.execute(&pool).await?;
-//!
-//! // Or get just the first result
-//! let first = qs.first(&pool).await?;
-//!
-//! // Or check existence
-//! let exists = qs.exists(&pool).await?;
-//! ```
+//! QuerySets are lazy and chainable. See [`QuerySet`] for the full API.
 //!
 //! ## Complex Filters with Q Objects
 //!
-//! ```ignore
+//! ```rust
 //! use oxide_orm::Q;
 //!
 //! // AND conditions
