@@ -6,6 +6,9 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+keywords = ["sql", "sqlite", "upsert", "type-safe", "query-builder"]
+categories = ["database"]
 
 [dependencies]
 oxide-sql-core.workspace = true

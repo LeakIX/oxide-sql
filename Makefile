@@ -120,9 +120,12 @@ doc-serve: ## Serve built documentation locally
 doc-clear: ## Clear documentation cache
 	(cd doc && npx docusaurus clear)
 
-# Publish targets
+# Publish and release targets
 # Crates must be published in dependency order.
 # Sleep between publishes to let the crates.io index update.
+
+VERSION := $(shell \
+	grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
 
 PUBLISH_CRATES := \
 	oxide-sql-derive \
@@ -143,3 +146,11 @@ publish: ## Publish all crates to crates.io
 publish-dry-run: ## Dry-run publish for all crates
 	cargo package --workspace --allow-dirty
 	@echo "Dry-run complete — all crates are ready to publish"
+
+.PHONY: release
+release: publish ## Publish crates, tag, and create GitHub release
+	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
+	git push origin "v$(VERSION)"
+	gh release create "v$(VERSION)" \
+		--title "v$(VERSION)" \
+		--notes "See CHANGELOG.md for details."

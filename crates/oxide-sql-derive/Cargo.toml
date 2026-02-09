@@ -6,6 +6,9 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+keywords = ["sql", "derive", "macro", "type-safe", "table"]
+categories = ["database"]
 
 [lib]
 proc-macro = true
