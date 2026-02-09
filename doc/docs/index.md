@@ -12,20 +12,8 @@ SQL injection prevention.
 - **Type-Safe SQL Building**: Invalid SQL constructs are caught at compile time
   using the typestate pattern
 - **SQL Injection Prevention**: All user input is automatically parameterized
-- **Django-like ORM**: Familiar QuerySet API, Model trait, and Managers
-- **Admin Interface**: Automatic CRUD admin interface
-- **Database Migrations**: Django-style migrations with auto-detection
-- **Authentication**: User management, sessions, and permissions
 - **Hand-Written Parser**: Recursive descent parser with Pratt expression parsing
 - **SQLite Extensions**: SQLite-specific syntax like UPSERT
-
-## Try the Admin Interface
-
-```bash
-cargo run -p oxide-admin --example blog_admin
-```
-
-Then open http://localhost:3000/admin/ and login with `admin` / `admin123`.
 
 ## Quick Start
 
@@ -54,5 +42,10 @@ documentation with code examples.
 - [Getting Started](./getting-started) - Installation and basic usage
 - [SQL Builders](./builders/) - SELECT, INSERT, UPDATE, DELETE builders
 - [Type-Safe Schema](./schema/) - Define tables with derive macros
-- [Admin Interface](./admin/) - Django-like admin for your models
 - [SQL Security Guide](./security/) - SQL injection and prevention
+
+## Web Framework
+
+Looking for ORM, admin interface, authentication, forms, routing, and
+migrations? See [Corrode](https://github.com/LeakIX/corrode), a Django-like
+web framework for Rust built on oxide-sql.
