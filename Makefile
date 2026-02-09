@@ -142,6 +142,36 @@ e2e-test-headed: ## Run E2E tests in headed mode
 e2e-report: ## Show E2E test report
 	cd e2e && npx playwright show-report
 
+# Publish targets
+# Crates must be published in dependency order.
+# Sleep between publishes to let the crates.io index update.
+
+PUBLISH_CRATES := \
+	oxide-sql-derive \
+	oxide-sql-core \
+	oxide-router \
+	oxide-sql-sqlite \
+	oxide-orm \
+	oxide-forms \
+	oxide-migrate \
+	oxide-auth \
+	oxide-admin
+
+.PHONY: publish
+publish: ## Publish all crates to crates.io
+	@for crate in $(PUBLISH_CRATES); do \
+		echo "Publishing $$crate..."; \
+		cargo publish -p $$crate || exit 1; \
+		echo "Waiting for crates.io index to update..."; \
+		sleep 30; \
+	done
+	@echo "All crates published successfully"
+
+.PHONY: publish-dry-run
+publish-dry-run: ## Dry-run publish for all crates
+	cargo package --workspace --allow-dirty
+	@echo "Dry-run complete — all crates are ready to publish"
+
 # Example targets
 
 .PHONY: example-blog
