@@ -4,12 +4,6 @@ members = [
     "crates/oxide-sql-core",
     "crates/oxide-sql-derive",
     "crates/oxide-sql-sqlite",
-    "crates/oxide-migrate",
-    "crates/oxide-orm",
-    "crates/oxide-auth",
-    "crates/oxide-forms",
-    "crates/oxide-router",
-    "crates/oxide-admin",
 ]
 
 [workspace.package]
@@ -23,30 +17,9 @@ repository = "https://github.com/leakix/oxide-sql"
 oxide-sql-core = { path = "crates/oxide-sql-core" }
 oxide-sql-derive = { path = "crates/oxide-sql-derive" }
 oxide-sql-sqlite = { path = "crates/oxide-sql-sqlite" }
-oxide-migrate = { path = "crates/oxide-migrate" }
-oxide-orm = { path = "crates/oxide-orm" }
-oxide-auth = { path = "crates/oxide-auth" }
-oxide-forms = { path = "crates/oxide-forms" }
-oxide-router = { path = "crates/oxide-router" }
-oxide-admin = { path = "crates/oxide-admin" }
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"
-tokio = { version = "1.44", features = ["full"] }
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono"] }
-clap = { version = "4.5", features = ["derive", "env"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-chrono = { version = "0.4", features = ["serde"] }
-thiserror = "2.0"
-tracing = "0.1.40"
-argon2 = "0.5"
-password-hash = { version = "0.5", features = ["getrandom"] }
-rand = "0.10"
-regex = "1.10"
-futures = "0.3"
-ironhtml = { version = "1.0.0", features = ["macros"] }
-ironhtml-elements = "1.0.0"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

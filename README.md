@@ -1,30 +1,16 @@
 # Oxide SQL
 
-A type-safe SQL parser and builder for Rust with compile-time validation, SQL
-injection prevention, and Django-like admin interface.
+A type-safe SQL parser and builder for Rust with compile-time validation and
+SQL injection prevention.
 
 ## Features
 
 - **Type-Safe SQL Building**: Invalid SQL constructs are caught at compile time
   using the typestate pattern
 - **SQL Injection Prevention**: All user input is automatically parameterized
-- **Django-like ORM**: Familiar QuerySet API, Model trait, and Managers
-- **Admin Interface**: Automatic CRUD admin with TailwindCSS UI
-- **Database Migrations**: Django-style migrations with auto-detection
-- **Authentication**: User management, sessions, and permissions
 - **Hand-Written Parser**: Recursive descent parser with Pratt expression
   parsing
 - **SQLite Extensions**: SQLite-specific syntax like UPSERT
-
-## Try the Admin Interface
-
-Run the blog admin example to see the admin interface in action:
-
-```bash
-cargo run -p oxide-admin --example blog_admin
-```
-
-Then open http://localhost:3000/admin/ and login with `admin` / `admin123`.
 
 ## Installation
 
@@ -53,12 +39,12 @@ for complete examples with compile-time validation. Key modules:
 - **oxide-sql-core**: Core parser and type-safe builders
 - **oxide-sql-sqlite**: SQLite-specific extensions
 - **oxide-sql-derive**: Derive macros for type-safe tables
-- **oxide-orm**: Django-like ORM with QuerySet, Manager, and Model
-- **oxide-migrate**: Database migrations with auto-detection
-- **oxide-auth**: Authentication, sessions, and permissions
-- **oxide-forms**: Form validation and rendering
-- **oxide-router**: HTTP routing for web applications
-- **oxide-admin**: Django-like admin interface
+
+## Web Framework
+
+Looking for ORM, admin interface, authentication, forms, routing, and
+migrations? See [Corrode](https://github.com/LeakIX/corrode), a Django-like
+web framework for Rust built on oxide-sql.
 
 ## Documentation
 
@@ -73,9 +59,6 @@ make test           # Run tests
 make lint           # Run clippy
 make format         # Format code
 make doc-dev        # Run documentation dev server
-make example-blog   # Run blog admin example
-make e2e-install    # Install E2E test dependencies
-make e2e-test       # Run E2E tests
 ```
 
 ## License

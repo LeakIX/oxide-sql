@@ -120,28 +120,6 @@ doc-serve: ## Serve built documentation locally
 doc-clear: ## Clear documentation cache
 	(cd doc && npx docusaurus clear)
 
-# E2E test targets
-
-.PHONY: e2e-install
-e2e-install: ## Install E2E test dependencies
-	cd e2e && npm install && npx playwright install
-
-.PHONY: e2e-test
-e2e-test: ## Run E2E tests
-	cd e2e && npx playwright test
-
-.PHONY: e2e-test-ui
-e2e-test-ui: ## Run E2E tests with UI
-	cd e2e && npx playwright test --ui
-
-.PHONY: e2e-test-headed
-e2e-test-headed: ## Run E2E tests in headed mode
-	cd e2e && npx playwright test --headed
-
-.PHONY: e2e-report
-e2e-report: ## Show E2E test report
-	cd e2e && npx playwright show-report
-
 # Publish targets
 # Crates must be published in dependency order.
 # Sleep between publishes to let the crates.io index update.
@@ -149,13 +127,7 @@ e2e-report: ## Show E2E test report
 PUBLISH_CRATES := \
 	oxide-sql-derive \
 	oxide-sql-core \
-	oxide-router \
-	oxide-sql-sqlite \
-	oxide-orm \
-	oxide-forms \
-	oxide-migrate \
-	oxide-auth \
-	oxide-admin
+	oxide-sql-sqlite
 
 .PHONY: publish
 publish: ## Publish all crates to crates.io
@@ -171,9 +143,3 @@ publish: ## Publish all crates to crates.io
 publish-dry-run: ## Dry-run publish for all crates
 	cargo package --workspace --allow-dirty
 	@echo "Dry-run complete — all crates are ready to publish"
-
-# Example targets
-
-.PHONY: example-blog
-example-blog: ## Run blog admin example
-	cargo run --example blog_admin
