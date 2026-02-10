@@ -4,9 +4,11 @@
 //! This module provides dialect implementations for generating
 //! database-specific migration SQL.
 
+mod duckdb;
 mod postgres;
 mod sqlite;
 
+pub use duckdb::DuckDbDialect;
 pub use postgres::PostgresDialect;
 pub use sqlite::SqliteDialect;
 

@@ -197,7 +197,7 @@ impl<T: Table> Select<T, HasColumns, HasFrom> {
     #[must_use]
     pub fn build(self) -> (String, Vec<SqlValue>) {
         let mut sql = String::from("SELECT ");
-        let params = vec![];
+        let mut params = vec![];
 
         // Columns
         sql.push_str(&self.columns.join(", "));
@@ -212,6 +212,7 @@ impl<T: Table> Select<T, HasColumns, HasFrom> {
         if let Some(ref where_expr) = self.where_clause {
             sql.push_str(" WHERE ");
             sql.push_str(where_expr.sql());
+            params.extend(where_expr.params().iter().cloned());
         }
 
         // ORDER BY
@@ -452,12 +453,14 @@ impl<T: Table> Update<T, HasSet> {
             .collect();
         sql.push_str(&set_clauses.join(", "));
 
+        let mut params: Vec<SqlValue> = self.sets.into_iter().map(|(_, v)| v).collect();
+
         if let Some(ref where_expr) = self.where_clause {
             sql.push_str(" WHERE ");
             sql.push_str(where_expr.sql());
+            params.extend(where_expr.params().iter().cloned());
         }
 
-        let params: Vec<SqlValue> = self.sets.into_iter().map(|(_, v)| v).collect();
         (sql, params)
     }
 
@@ -518,13 +521,15 @@ impl<T: Table> Delete<T> {
     pub fn build(self) -> (String, Vec<SqlValue>) {
         let mut sql = String::from("DELETE FROM ");
         sql.push_str(T::NAME);
+        let mut params = vec![];
 
         if let Some(ref where_expr) = self.where_clause {
             sql.push_str(" WHERE ");
             sql.push_str(where_expr.sql());
+            params.extend(where_expr.params().iter().cloned());
         }
 
-        (sql, vec![])
+        (sql, params)
     }
 
     /// Builds the query and returns only the SQL string.
