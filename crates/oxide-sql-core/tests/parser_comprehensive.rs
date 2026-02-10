@@ -3,9 +3,9 @@
 //! Covers every parser feature with realistic and complex SQL.
 
 use oxide_sql_core::ast::{
-    BinaryOp, DataType, DeleteStatement, Expr, FunctionCall, InsertSource,
-    InsertStatement, JoinType, Literal, OrderDirection, SelectStatement,
-    Statement, TableRef, UnaryOp, UpdateStatement,
+    BinaryOp, DataType, DeleteStatement, Expr, FunctionCall, InsertSource, InsertStatement,
+    JoinType, Literal, OrderDirection, SelectStatement, Statement, TableRef, UnaryOp,
+    UpdateStatement,
 };
 use oxide_sql_core::{ParseError, Parser};
 
@@ -61,10 +61,7 @@ fn parse_delete(sql: &str) -> DeleteStatement {
 fn select_star() {
     let s = parse_select("SELECT * FROM users");
     assert_eq!(s.columns.len(), 1);
-    assert!(matches!(
-        s.columns[0].expr,
-        Expr::Wildcard { table: None }
-    ));
+    assert!(matches!(s.columns[0].expr, Expr::Wildcard { table: None }));
 }
 
 #[test]
@@ -120,7 +117,10 @@ fn select_expression_alias() {
     assert_eq!(s.columns[0].alias.as_deref(), Some("total"));
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::Add, .. }
+        Expr::Binary {
+            op: BinaryOp::Add,
+            ..
+        }
     ));
 }
 
@@ -143,7 +143,10 @@ fn select_without_from() {
     assert!(s.from.is_none());
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::Add, .. }
+        Expr::Binary {
+            op: BinaryOp::Add,
+            ..
+        }
     ));
 }
 
@@ -193,17 +196,13 @@ fn from_schema_qualified_table() {
 
 #[test]
 fn from_subquery_with_alias() {
-    let s = parse_select(
-        "SELECT t.id FROM (SELECT id FROM users) AS t",
-    );
+    let s = parse_select("SELECT t.id FROM (SELECT id FROM users) AS t");
     assert!(matches!(&s.from, Some(TableRef::Subquery { alias, .. }) if alias == "t"));
 }
 
 #[test]
 fn from_subquery_with_where() {
-    let s = parse_select(
-        "SELECT t.id FROM (SELECT id FROM users WHERE active = 1) AS t",
-    );
+    let s = parse_select("SELECT t.id FROM (SELECT id FROM users WHERE active = 1) AS t");
     if let Some(TableRef::Subquery { query, alias }) = &s.from {
         assert_eq!(alias, "t");
         assert!(query.where_clause.is_some());
@@ -218,9 +217,7 @@ fn from_subquery_with_where() {
 
 #[test]
 fn join_inner() {
-    let s = parse_select(
-        "SELECT * FROM a INNER JOIN b ON a.id = b.a_id",
-    );
+    let s = parse_select("SELECT * FROM a INNER JOIN b ON a.id = b.a_id");
     if let Some(TableRef::Join { join, .. }) = &s.from {
         assert_eq!(join.join_type, JoinType::Inner);
         assert!(join.on.is_some());
@@ -231,9 +228,7 @@ fn join_inner() {
 
 #[test]
 fn join_left() {
-    let s = parse_select(
-        "SELECT * FROM a LEFT JOIN b ON a.id = b.a_id",
-    );
+    let s = parse_select("SELECT * FROM a LEFT JOIN b ON a.id = b.a_id");
     if let Some(TableRef::Join { join, .. }) = &s.from {
         assert_eq!(join.join_type, JoinType::Left);
     } else {
@@ -243,9 +238,7 @@ fn join_left() {
 
 #[test]
 fn join_right() {
-    let s = parse_select(
-        "SELECT * FROM a RIGHT JOIN b ON a.id = b.a_id",
-    );
+    let s = parse_select("SELECT * FROM a RIGHT JOIN b ON a.id = b.a_id");
     if let Some(TableRef::Join { join, .. }) = &s.from {
         assert_eq!(join.join_type, JoinType::Right);
     } else {
@@ -255,9 +248,7 @@ fn join_right() {
 
 #[test]
 fn join_full() {
-    let s = parse_select(
-        "SELECT * FROM a FULL JOIN b ON a.id = b.a_id",
-    );
+    let s = parse_select("SELECT * FROM a FULL JOIN b ON a.id = b.a_id");
     if let Some(TableRef::Join { join, .. }) = &s.from {
         assert_eq!(join.join_type, JoinType::Full);
     } else {
@@ -279,9 +270,7 @@ fn join_cross() {
 
 #[test]
 fn join_left_outer() {
-    let s = parse_select(
-        "SELECT * FROM a LEFT OUTER JOIN b ON a.id = b.a_id",
-    );
+    let s = parse_select("SELECT * FROM a LEFT OUTER JOIN b ON a.id = b.a_id");
     if let Some(TableRef::Join { join, .. }) = &s.from {
         assert_eq!(join.join_type, JoinType::Left);
     } else {
@@ -291,9 +280,7 @@ fn join_left_outer() {
 
 #[test]
 fn join_right_outer() {
-    let s = parse_select(
-        "SELECT * FROM a RIGHT OUTER JOIN b ON a.id = b.a_id",
-    );
+    let s = parse_select("SELECT * FROM a RIGHT OUTER JOIN b ON a.id = b.a_id");
     if let Some(TableRef::Join { join, .. }) = &s.from {
         assert_eq!(join.join_type, JoinType::Right);
     } else {
@@ -303,9 +290,7 @@ fn join_right_outer() {
 
 #[test]
 fn join_full_outer() {
-    let s = parse_select(
-        "SELECT * FROM a FULL OUTER JOIN b ON a.id = b.a_id",
-    );
+    let s = parse_select("SELECT * FROM a FULL OUTER JOIN b ON a.id = b.a_id");
     if let Some(TableRef::Join { join, .. }) = &s.from {
         assert_eq!(join.join_type, JoinType::Full);
     } else {
@@ -315,9 +300,7 @@ fn join_full_outer() {
 
 #[test]
 fn join_bare_defaults_to_inner() {
-    let s = parse_select(
-        "SELECT * FROM a JOIN b ON a.id = b.a_id",
-    );
+    let s = parse_select("SELECT * FROM a JOIN b ON a.id = b.a_id");
     if let Some(TableRef::Join { join, .. }) = &s.from {
         assert_eq!(join.join_type, JoinType::Inner);
     } else {
@@ -327,9 +310,7 @@ fn join_bare_defaults_to_inner() {
 
 #[test]
 fn join_using_single_column() {
-    let s = parse_select(
-        "SELECT * FROM a JOIN b USING (id)",
-    );
+    let s = parse_select("SELECT * FROM a JOIN b USING (id)");
     if let Some(TableRef::Join { join, .. }) = &s.from {
         assert!(join.on.is_none());
         assert_eq!(join.using, vec!["id"]);
@@ -340,9 +321,7 @@ fn join_using_single_column() {
 
 #[test]
 fn join_using_multiple_columns() {
-    let s = parse_select(
-        "SELECT * FROM a JOIN b USING (id, name)",
-    );
+    let s = parse_select("SELECT * FROM a JOIN b USING (id, name)");
     if let Some(TableRef::Join { join, .. }) = &s.from {
         assert_eq!(join.using, vec!["id", "name"]);
     } else {
@@ -380,27 +359,29 @@ fn where_simple() {
     let s = parse_select("SELECT * FROM users WHERE id = 1");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::Eq, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::Eq,
+            ..
+        })
     ));
 }
 
 #[test]
 fn where_compound_and_or() {
-    let s = parse_select(
-        "SELECT * FROM users WHERE (age > 18 AND active = 1) OR admin = 1",
-    );
+    let s = parse_select("SELECT * FROM users WHERE (age > 18 AND active = 1) OR admin = 1");
     // Outer is OR because AND binds tighter
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::Or, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::Or,
+            ..
+        })
     ));
 }
 
 #[test]
 fn group_by_single() {
-    let s = parse_select(
-        "SELECT status, COUNT(*) FROM orders GROUP BY status",
-    );
+    let s = parse_select("SELECT status, COUNT(*) FROM orders GROUP BY status");
     assert_eq!(s.group_by.len(), 1);
     assert!(matches!(
         &s.group_by[0],
@@ -426,7 +407,10 @@ fn having_with_aggregate() {
     assert!(s.having.is_some());
     assert!(matches!(
         &s.having,
-        Some(Expr::Binary { op: BinaryOp::Gt, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::Gt,
+            ..
+        })
     ));
 }
 
@@ -463,17 +447,13 @@ fn order_by_explicit_asc() {
 
 #[test]
 fn order_by_desc() {
-    let s = parse_select(
-        "SELECT * FROM users ORDER BY created_at DESC",
-    );
+    let s = parse_select("SELECT * FROM users ORDER BY created_at DESC");
     assert_eq!(s.order_by[0].direction, OrderDirection::Desc);
 }
 
 #[test]
 fn order_by_multiple_columns() {
-    let s = parse_select(
-        "SELECT * FROM users ORDER BY last_name ASC, first_name DESC",
-    );
+    let s = parse_select("SELECT * FROM users ORDER BY last_name ASC, first_name DESC");
     assert_eq!(s.order_by.len(), 2);
     assert_eq!(s.order_by[0].direction, OrderDirection::Asc);
     assert_eq!(s.order_by[1].direction, OrderDirection::Desc);
@@ -482,14 +462,20 @@ fn order_by_multiple_columns() {
 #[test]
 fn limit_only() {
     let s = parse_select("SELECT * FROM users LIMIT 10");
-    assert!(matches!(&s.limit, Some(Expr::Literal(Literal::Integer(10)))));
+    assert!(matches!(
+        &s.limit,
+        Some(Expr::Literal(Literal::Integer(10)))
+    ));
     assert!(s.offset.is_none());
 }
 
 #[test]
 fn limit_and_offset() {
     let s = parse_select("SELECT * FROM users LIMIT 10 OFFSET 20");
-    assert!(matches!(&s.limit, Some(Expr::Literal(Literal::Integer(10)))));
+    assert!(matches!(
+        &s.limit,
+        Some(Expr::Literal(Literal::Integer(10)))
+    ));
     assert!(matches!(
         &s.offset,
         Some(Expr::Literal(Literal::Integer(20)))
@@ -529,9 +515,7 @@ fn insert_without_columns() {
 
 #[test]
 fn insert_multiple_rows() {
-    let i = parse_insert(
-        "INSERT INTO users (name) VALUES ('A'), ('B'), ('C')",
-    );
+    let i = parse_insert("INSERT INTO users (name) VALUES ('A'), ('B'), ('C')");
     if let InsertSource::Values(rows) = &i.values {
         assert_eq!(rows.len(), 3);
     } else {
@@ -556,22 +540,21 @@ fn insert_default_values() {
 
 #[test]
 fn insert_schema_qualified() {
-    let i = parse_insert(
-        "INSERT INTO public.users (name) VALUES ('Eve')",
-    );
+    let i = parse_insert("INSERT INTO public.users (name) VALUES ('Eve')");
     assert_eq!(i.schema.as_deref(), Some("public"));
     assert_eq!(i.table, "users");
 }
 
 #[test]
 fn insert_with_expressions() {
-    let i = parse_insert(
-        "INSERT INTO stats (value) VALUES (1 + 2)",
-    );
+    let i = parse_insert("INSERT INTO stats (value) VALUES (1 + 2)");
     if let InsertSource::Values(rows) = &i.values {
         assert!(matches!(
             &rows[0][0],
-            Expr::Binary { op: BinaryOp::Add, .. }
+            Expr::Binary {
+                op: BinaryOp::Add,
+                ..
+            }
         ));
     } else {
         panic!("Expected VALUES");
@@ -580,17 +563,21 @@ fn insert_with_expressions() {
 
 #[test]
 fn insert_with_parameters() {
-    let i = parse_insert(
-        "INSERT INTO users (name, email) VALUES (?, ?)",
-    );
+    let i = parse_insert("INSERT INTO users (name, email) VALUES (?, ?)");
     if let InsertSource::Values(rows) = &i.values {
         assert!(matches!(
             &rows[0][0],
-            Expr::Parameter { position: 1, name: None }
+            Expr::Parameter {
+                position: 1,
+                name: None
+            }
         ));
         assert!(matches!(
             &rows[0][1],
-            Expr::Parameter { position: 2, name: None }
+            Expr::Parameter {
+                position: 2,
+                name: None
+            }
         ));
     } else {
         panic!("Expected VALUES");
@@ -612,9 +599,7 @@ fn update_single_set() {
 
 #[test]
 fn update_multiple_set() {
-    let u = parse_update(
-        "UPDATE users SET name = 'Bob', email = 'bob@x.com' WHERE id = 1",
-    );
+    let u = parse_update("UPDATE users SET name = 'Bob', email = 'bob@x.com' WHERE id = 1");
     assert_eq!(u.assignments.len(), 2);
     assert_eq!(u.assignments[0].column, "name");
     assert_eq!(u.assignments[1].column, "email");
@@ -622,18 +607,14 @@ fn update_multiple_set() {
 
 #[test]
 fn update_schema_qualified() {
-    let u = parse_update(
-        "UPDATE public.users SET name = 'X' WHERE id = 1",
-    );
+    let u = parse_update("UPDATE public.users SET name = 'X' WHERE id = 1");
     assert_eq!(u.schema.as_deref(), Some("public"));
     assert_eq!(u.table, "users");
 }
 
 #[test]
 fn update_with_alias() {
-    let u = parse_update(
-        "UPDATE users u SET name = 'X' WHERE u.id = 1",
-    );
+    let u = parse_update("UPDATE users u SET name = 'X' WHERE u.id = 1");
     assert_eq!(u.alias.as_deref(), Some("u"));
 }
 
@@ -656,12 +637,13 @@ fn update_without_where() {
 
 #[test]
 fn update_with_parameters() {
-    let u = parse_update(
-        "UPDATE users SET name = ?, email = :email WHERE id = ?",
-    );
+    let u = parse_update("UPDATE users SET name = ?, email = :email WHERE id = ?");
     assert!(matches!(
         &u.assignments[0].value,
-        Expr::Parameter { position: 1, name: None }
+        Expr::Parameter {
+            position: 1,
+            name: None
+        }
     ));
     assert!(matches!(
         &u.assignments[1].value,
@@ -707,7 +689,10 @@ fn delete_complex_where() {
     );
     assert!(matches!(
         &d.where_clause,
-        Some(Expr::Binary { op: BinaryOp::And, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::And,
+            ..
+        })
     ));
 }
 
@@ -784,10 +769,7 @@ fn literal_false() {
 #[test]
 fn literal_null() {
     let s = parse_select("SELECT NULL");
-    assert!(matches!(
-        &s.columns[0].expr,
-        Expr::Literal(Literal::Null)
-    ));
+    assert!(matches!(&s.columns[0].expr, Expr::Literal(Literal::Null)));
 }
 
 // ===================================================================
@@ -799,7 +781,10 @@ fn binop_add() {
     let s = parse_select("SELECT 1 + 2");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::Add, .. }
+        Expr::Binary {
+            op: BinaryOp::Add,
+            ..
+        }
     ));
 }
 
@@ -808,7 +793,10 @@ fn binop_sub() {
     let s = parse_select("SELECT 5 - 3");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::Sub, .. }
+        Expr::Binary {
+            op: BinaryOp::Sub,
+            ..
+        }
     ));
 }
 
@@ -817,7 +805,10 @@ fn binop_mul() {
     let s = parse_select("SELECT 4 * 2");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::Mul, .. }
+        Expr::Binary {
+            op: BinaryOp::Mul,
+            ..
+        }
     ));
 }
 
@@ -826,7 +817,10 @@ fn binop_div() {
     let s = parse_select("SELECT 8 / 2");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::Div, .. }
+        Expr::Binary {
+            op: BinaryOp::Div,
+            ..
+        }
     ));
 }
 
@@ -835,7 +829,10 @@ fn binop_mod() {
     let s = parse_select("SELECT 7 % 3");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::Mod, .. }
+        Expr::Binary {
+            op: BinaryOp::Mod,
+            ..
+        }
     ));
 }
 
@@ -844,7 +841,10 @@ fn binop_concat() {
     let s = parse_select("SELECT 'a' || 'b'");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::Concat, .. }
+        Expr::Binary {
+            op: BinaryOp::Concat,
+            ..
+        }
     ));
 }
 
@@ -857,7 +857,10 @@ fn binop_eq() {
     let s = parse_select("SELECT * FROM t WHERE x = 1");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::Eq, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::Eq,
+            ..
+        })
     ));
 }
 
@@ -866,7 +869,10 @@ fn binop_not_eq() {
     let s = parse_select("SELECT * FROM t WHERE x != 1");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::NotEq, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::NotEq,
+            ..
+        })
     ));
 }
 
@@ -875,7 +881,10 @@ fn binop_lt() {
     let s = parse_select("SELECT * FROM t WHERE x < 1");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::Lt, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::Lt,
+            ..
+        })
     ));
 }
 
@@ -884,7 +893,10 @@ fn binop_lt_eq() {
     let s = parse_select("SELECT * FROM t WHERE x <= 1");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::LtEq, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::LtEq,
+            ..
+        })
     ));
 }
 
@@ -893,7 +905,10 @@ fn binop_gt() {
     let s = parse_select("SELECT * FROM t WHERE x > 1");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::Gt, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::Gt,
+            ..
+        })
     ));
 }
 
@@ -902,7 +917,10 @@ fn binop_gt_eq() {
     let s = parse_select("SELECT * FROM t WHERE x >= 1");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::GtEq, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::GtEq,
+            ..
+        })
     ));
 }
 
@@ -915,7 +933,10 @@ fn binop_and() {
     let s = parse_select("SELECT * FROM t WHERE a = 1 AND b = 2");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::And, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::And,
+            ..
+        })
     ));
 }
 
@@ -924,18 +945,22 @@ fn binop_or() {
     let s = parse_select("SELECT * FROM t WHERE a = 1 OR b = 2");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::Or, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::Or,
+            ..
+        })
     ));
 }
 
 #[test]
 fn binop_like() {
-    let s = parse_select(
-        "SELECT * FROM t WHERE name LIKE '%test%'",
-    );
+    let s = parse_select("SELECT * FROM t WHERE name LIKE '%test%'");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::Like, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::Like,
+            ..
+        })
     ));
 }
 
@@ -948,7 +973,10 @@ fn binop_bit_and() {
     let s = parse_select("SELECT 5 & 3");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::BitAnd, .. }
+        Expr::Binary {
+            op: BinaryOp::BitAnd,
+            ..
+        }
     ));
 }
 
@@ -957,7 +985,10 @@ fn binop_bit_or() {
     let s = parse_select("SELECT 5 | 3");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::BitOr, .. }
+        Expr::Binary {
+            op: BinaryOp::BitOr,
+            ..
+        }
     ));
 }
 
@@ -966,7 +997,10 @@ fn binop_left_shift() {
     let s = parse_select("SELECT 1 << 4");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::LeftShift, .. }
+        Expr::Binary {
+            op: BinaryOp::LeftShift,
+            ..
+        }
     ));
 }
 
@@ -975,7 +1009,10 @@ fn binop_right_shift() {
     let s = parse_select("SELECT 16 >> 2");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Binary { op: BinaryOp::RightShift, .. }
+        Expr::Binary {
+            op: BinaryOp::RightShift,
+            ..
+        }
     ));
 }
 
@@ -988,7 +1025,10 @@ fn unary_neg() {
     let s = parse_select("SELECT -x FROM t");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Unary { op: UnaryOp::Neg, .. }
+        Expr::Unary {
+            op: UnaryOp::Neg,
+            ..
+        }
     ));
 }
 
@@ -997,7 +1037,10 @@ fn unary_not() {
     let s = parse_select("SELECT * FROM t WHERE NOT active");
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Unary { op: UnaryOp::Not, .. })
+        Some(Expr::Unary {
+            op: UnaryOp::Not,
+            ..
+        })
     ));
 }
 
@@ -1006,7 +1049,10 @@ fn unary_bit_not() {
     let s = parse_select("SELECT ~flags FROM t");
     assert!(matches!(
         &s.columns[0].expr,
-        Expr::Unary { op: UnaryOp::BitNot, .. }
+        Expr::Unary {
+            op: UnaryOp::BitNot,
+            ..
+        }
     ));
 }
 
@@ -1023,7 +1069,10 @@ fn precedence_mul_over_add() {
         assert!(matches!(left.as_ref(), Expr::Literal(Literal::Integer(1))));
         assert!(matches!(
             right.as_ref(),
-            Expr::Binary { op: BinaryOp::Mul, .. }
+            Expr::Binary {
+                op: BinaryOp::Mul,
+                ..
+            }
         ));
     } else {
         panic!("Expected binary");
@@ -1038,7 +1087,10 @@ fn precedence_left_associativity() {
         assert_eq!(*op, BinaryOp::Sub);
         assert!(matches!(
             left.as_ref(),
-            Expr::Binary { op: BinaryOp::Sub, .. }
+            Expr::Binary {
+                op: BinaryOp::Sub,
+                ..
+            }
         ));
     } else {
         panic!("Expected binary");
@@ -1053,11 +1105,17 @@ fn precedence_comparison_over_and() {
         assert_eq!(*op, BinaryOp::And);
         assert!(matches!(
             left.as_ref(),
-            Expr::Binary { op: BinaryOp::Eq, .. }
+            Expr::Binary {
+                op: BinaryOp::Eq,
+                ..
+            }
         ));
         assert!(matches!(
             right.as_ref(),
-            Expr::Binary { op: BinaryOp::Eq, .. }
+            Expr::Binary {
+                op: BinaryOp::Eq,
+                ..
+            }
         ));
     } else {
         panic!("Expected AND");
@@ -1067,14 +1125,15 @@ fn precedence_comparison_over_and() {
 #[test]
 fn precedence_and_over_or() {
     // a OR b AND c -> OR(a, AND(b, c))
-    let s = parse_select(
-        "SELECT * FROM t WHERE a = 1 OR b = 2 AND c = 3",
-    );
+    let s = parse_select("SELECT * FROM t WHERE a = 1 OR b = 2 AND c = 3");
     if let Some(Expr::Binary { op, right, .. }) = &s.where_clause {
         assert_eq!(*op, BinaryOp::Or);
         assert!(matches!(
             right.as_ref(),
-            Expr::Binary { op: BinaryOp::And, .. }
+            Expr::Binary {
+                op: BinaryOp::And,
+                ..
+            }
         ));
     } else {
         panic!("Expected OR");
@@ -1120,7 +1179,10 @@ fn precedence_unary_neg_high_binding() {
         assert_eq!(*op, UnaryOp::Neg);
         assert!(matches!(
             operand.as_ref(),
-            Expr::Binary { op: BinaryOp::Mul, .. }
+            Expr::Binary {
+                op: BinaryOp::Mul,
+                ..
+            }
         ));
     } else {
         panic!("Expected unary neg");
@@ -1155,19 +1217,14 @@ fn is_not_null() {
 
 #[test]
 fn between_simple() {
-    let s = parse_select(
-        "SELECT * FROM t WHERE x BETWEEN 1 AND 10",
-    );
+    let s = parse_select("SELECT * FROM t WHERE x BETWEEN 1 AND 10");
     if let Some(Expr::Between {
         negated, low, high, ..
     }) = &s.where_clause
     {
         assert!(!negated);
         assert!(matches!(low.as_ref(), Expr::Literal(Literal::Integer(1))));
-        assert!(matches!(
-            high.as_ref(),
-            Expr::Literal(Literal::Integer(10))
-        ));
+        assert!(matches!(high.as_ref(), Expr::Literal(Literal::Integer(10))));
     } else {
         panic!("Expected BETWEEN");
     }
@@ -1175,17 +1232,21 @@ fn between_simple() {
 
 #[test]
 fn between_with_expressions() {
-    let s = parse_select(
-        "SELECT * FROM t WHERE x BETWEEN 1 + 1 AND 5 * 2",
-    );
+    let s = parse_select("SELECT * FROM t WHERE x BETWEEN 1 + 1 AND 5 * 2");
     if let Some(Expr::Between { low, high, .. }) = &s.where_clause {
         assert!(matches!(
             low.as_ref(),
-            Expr::Binary { op: BinaryOp::Add, .. }
+            Expr::Binary {
+                op: BinaryOp::Add,
+                ..
+            }
         ));
         assert!(matches!(
             high.as_ref(),
-            Expr::Binary { op: BinaryOp::Mul, .. }
+            Expr::Binary {
+                op: BinaryOp::Mul,
+                ..
+            }
         ));
     } else {
         panic!("Expected BETWEEN");
@@ -1199,10 +1260,7 @@ fn between_with_expressions() {
 #[test]
 fn in_integers() {
     let s = parse_select("SELECT * FROM t WHERE id IN (1, 2, 3)");
-    if let Some(Expr::In {
-        list, negated, ..
-    }) = &s.where_clause
-    {
+    if let Some(Expr::In { list, negated, .. }) = &s.where_clause {
         assert!(!negated);
         assert_eq!(list.len(), 3);
     } else {
@@ -1212,9 +1270,7 @@ fn in_integers() {
 
 #[test]
 fn in_strings() {
-    let s = parse_select(
-        "SELECT * FROM t WHERE name IN ('a', 'b')",
-    );
+    let s = parse_select("SELECT * FROM t WHERE name IN ('a', 'b')");
     if let Some(Expr::In { list, .. }) = &s.where_clause {
         assert_eq!(list.len(), 2);
         assert!(matches!(
@@ -1255,9 +1311,7 @@ fn case_searched() {
 
 #[test]
 fn case_searched_without_else() {
-    let s = parse_select(
-        "SELECT CASE WHEN x > 0 THEN 'pos' END FROM t",
-    );
+    let s = parse_select("SELECT CASE WHEN x > 0 THEN 'pos' END FROM t");
     if let Expr::Case { else_clause, .. } = &s.columns[0].expr {
         assert!(else_clause.is_none());
     } else {
@@ -1295,7 +1349,10 @@ fn case_in_where() {
     // Top-level is Eq, left is CASE
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::Eq, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::Eq,
+            ..
+        })
     ));
 }
 
@@ -1356,8 +1413,11 @@ fn cast_to_text() {
 #[test]
 fn function_count_star() {
     let s = parse_select("SELECT COUNT(*) FROM t");
-    if let Expr::Function(FunctionCall { name, args, distinct }) =
-        &s.columns[0].expr
+    if let Expr::Function(FunctionCall {
+        name,
+        args,
+        distinct,
+    }) = &s.columns[0].expr
     {
         assert_eq!(name, "COUNT");
         assert!(!distinct);
@@ -1371,9 +1431,7 @@ fn function_count_star() {
 #[test]
 fn function_count_column() {
     let s = parse_select("SELECT COUNT(id) FROM t");
-    if let Expr::Function(FunctionCall { name, args, .. }) =
-        &s.columns[0].expr
-    {
+    if let Expr::Function(FunctionCall { name, args, .. }) = &s.columns[0].expr {
         assert_eq!(name, "COUNT");
         assert_eq!(args.len(), 1);
         assert!(matches!(
@@ -1388,9 +1446,7 @@ fn function_count_column() {
 #[test]
 fn function_count_distinct() {
     let s = parse_select("SELECT COUNT(DISTINCT status) FROM t");
-    if let Expr::Function(FunctionCall { name, distinct, .. }) =
-        &s.columns[0].expr
-    {
+    if let Expr::Function(FunctionCall { name, distinct, .. }) = &s.columns[0].expr {
         assert_eq!(name, "COUNT");
         assert!(distinct);
     } else {
@@ -1437,9 +1493,7 @@ fn function_max() {
 #[test]
 fn function_coalesce() {
     let s = parse_select("SELECT COALESCE(a, b, 0) FROM t");
-    if let Expr::Function(FunctionCall { name, args, .. }) =
-        &s.columns[0].expr
-    {
+    if let Expr::Function(FunctionCall { name, args, .. }) = &s.columns[0].expr {
         assert_eq!(name, "COALESCE");
         assert_eq!(args.len(), 3);
     } else {
@@ -1450,9 +1504,7 @@ fn function_coalesce() {
 #[test]
 fn function_nullif() {
     let s = parse_select("SELECT NULLIF(x, 0) FROM t");
-    if let Expr::Function(FunctionCall { name, args, .. }) =
-        &s.columns[0].expr
-    {
+    if let Expr::Function(FunctionCall { name, args, .. }) = &s.columns[0].expr {
         assert_eq!(name, "NULLIF");
         assert_eq!(args.len(), 2);
     } else {
@@ -1467,9 +1519,7 @@ fn function_nullif() {
 #[test]
 fn custom_function_no_args() {
     let s = parse_select("SELECT now()");
-    if let Expr::Function(FunctionCall { name, args, .. }) =
-        &s.columns[0].expr
-    {
+    if let Expr::Function(FunctionCall { name, args, .. }) = &s.columns[0].expr {
         assert_eq!(name, "now");
         assert!(args.is_empty());
     } else {
@@ -1480,9 +1530,7 @@ fn custom_function_no_args() {
 #[test]
 fn custom_function_multi_args() {
     let s = parse_select("SELECT substr(name, 1, 3) FROM t");
-    if let Expr::Function(FunctionCall { name, args, .. }) =
-        &s.columns[0].expr
-    {
+    if let Expr::Function(FunctionCall { name, args, .. }) = &s.columns[0].expr {
         assert_eq!(name, "substr");
         assert_eq!(args.len(), 3);
     } else {
@@ -1509,9 +1557,7 @@ fn exists_in_where() {
 
 #[test]
 fn scalar_subquery_in_select() {
-    let s = parse_select(
-        "SELECT (SELECT COUNT(*) FROM orders) AS total",
-    );
+    let s = parse_select("SELECT (SELECT COUNT(*) FROM orders) AS total");
     assert!(matches!(&s.columns[0].expr, Expr::Subquery(_)));
     assert_eq!(s.columns[0].alias.as_deref(), Some("total"));
 }
@@ -1539,7 +1585,10 @@ fn param_positional() {
     if let Some(Expr::Binary { right, .. }) = &s.where_clause {
         assert!(matches!(
             right.as_ref(),
-            Expr::Parameter { name: None, position: 1 }
+            Expr::Parameter {
+                name: None,
+                position: 1
+            }
         ));
     } else {
         panic!("Expected parameter");
@@ -1548,20 +1597,24 @@ fn param_positional() {
 
 #[test]
 fn param_multiple_positional() {
-    let s = parse_select(
-        "SELECT * FROM t WHERE a = ? AND b = ?",
-    );
+    let s = parse_select("SELECT * FROM t WHERE a = ? AND b = ?");
     if let Some(Expr::Binary { left, right, .. }) = &s.where_clause {
         if let Expr::Binary { right: p1, .. } = left.as_ref() {
             assert!(matches!(
                 p1.as_ref(),
-                Expr::Parameter { position: 1, name: None }
+                Expr::Parameter {
+                    position: 1,
+                    name: None
+                }
             ));
         }
         if let Expr::Binary { right: p2, .. } = right.as_ref() {
             assert!(matches!(
                 p2.as_ref(),
-                Expr::Parameter { position: 2, name: None }
+                Expr::Parameter {
+                    position: 2,
+                    name: None
+                }
             ));
         }
     } else {
@@ -1571,9 +1624,7 @@ fn param_multiple_positional() {
 
 #[test]
 fn param_named() {
-    let s = parse_select(
-        "SELECT * FROM t WHERE name = :user_name",
-    );
+    let s = parse_select("SELECT * FROM t WHERE name = :user_name");
     if let Some(Expr::Binary { right, .. }) = &s.where_clause {
         assert!(matches!(
             right.as_ref(),
@@ -1586,9 +1637,7 @@ fn param_named() {
 
 #[test]
 fn param_mixed() {
-    let s = parse_select(
-        "SELECT * FROM t WHERE a = ? AND b = :name AND c = ?",
-    );
+    let s = parse_select("SELECT * FROM t WHERE a = ? AND b = :name AND c = ?");
     // Parse succeeds; positions: ?=1, :name=0, ?=2
     assert!(s.where_clause.is_some());
 }
@@ -1839,7 +1888,10 @@ fn complex_where_mixing_operators() {
     );
     assert!(matches!(
         &s.where_clause,
-        Some(Expr::Binary { op: BinaryOp::Or, .. })
+        Some(Expr::Binary {
+            op: BinaryOp::Or,
+            ..
+        })
     ));
 }
 
@@ -1887,7 +1939,5 @@ fn error_unclosed_paren() {
 
 #[test]
 fn error_join_without_on_or_using() {
-    let _ = parse_err(
-        "SELECT * FROM a INNER JOIN b WHERE a.id = 1",
-    );
+    let _ = parse_err("SELECT * FROM a INNER JOIN b WHERE a.id = 1");
 }
