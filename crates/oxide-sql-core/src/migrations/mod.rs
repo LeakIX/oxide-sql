@@ -52,7 +52,7 @@ pub use column_builder::{
     smallint, text, time, timestamp, varbinary, varchar, ColumnBuilder, ColumnDefinition,
     DefaultValue, ForeignKeyRef,
 };
-pub use dialect::{MigrationDialect, PostgresDialect, SqliteDialect};
+pub use dialect::{DuckDbDialect, MigrationDialect, PostgresDialect, SqliteDialect};
 pub use migration::{Migration, MigrationRunner, MigrationStatus};
 pub use operation::{
     AddColumnOp, AddForeignKeyOp, AlterColumnOp, CreateIndexOp, CreateTableOp, DropColumnOp,
