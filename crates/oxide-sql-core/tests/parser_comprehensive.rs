@@ -53,6 +53,20 @@ fn parse_delete(sql: &str) -> DeleteStatement {
     }
 }
 
+/// Verifies that `to_string()` produces a fixed point:
+/// parse(sql).to_string() can be re-parsed and yields the same
+/// string again.
+fn round_trip(sql: &str) {
+    let ast1 = parse(sql);
+    let rendered1 = ast1.to_string();
+    let ast2 = parse(&rendered1);
+    let rendered2 = ast2.to_string();
+    assert_eq!(
+        rendered1, rendered2,
+        "Round-trip failed.\n  Input:    {sql}\n  First:    {rendered1}\n  Second:   {rendered2}"
+    );
+}
+
 // ===================================================================
 // 1. SELECT — Column selection
 // ===================================================================
@@ -62,6 +76,7 @@ fn select_star() {
     let s = parse_select("SELECT * FROM users");
     assert_eq!(s.columns.len(), 1);
     assert!(matches!(s.columns[0].expr, Expr::Wildcard { table: None }));
+    round_trip("SELECT * FROM users");
 }
 
 #[test]
@@ -72,6 +87,7 @@ fn select_qualified_star() {
         &s.columns[0].expr,
         Expr::Wildcard { table: Some(t) } if t == "u"
     ));
+    round_trip("SELECT u.* FROM users AS u");
 }
 
 #[test]
@@ -86,6 +102,7 @@ fn select_named_columns() {
         &s.columns[2].expr,
         Expr::Column { name, table: None, .. } if name == "email"
     ));
+    round_trip("SELECT id, name, email FROM users");
 }
 
 #[test]
@@ -97,18 +114,21 @@ fn select_qualified_columns() {
         Expr::Column { table: Some(t), name, .. }
             if t == "u" && name == "id"
     ));
+    round_trip("SELECT u.id, u.name FROM users AS u");
 }
 
 #[test]
 fn select_alias_with_as() {
     let s = parse_select("SELECT id AS user_id FROM users");
     assert_eq!(s.columns[0].alias.as_deref(), Some("user_id"));
+    round_trip("SELECT id AS user_id FROM users");
 }
 
 #[test]
 fn select_bare_alias() {
     let s = parse_select("SELECT id uid FROM users");
     assert_eq!(s.columns[0].alias.as_deref(), Some("uid"));
+    round_trip("SELECT id AS uid FROM users");
 }
 
 #[test]
@@ -122,6 +142,7 @@ fn select_expression_alias() {
             ..
         }
     ));
+    round_trip("SELECT 1 + 2 AS total");
 }
 
 #[test]
@@ -129,12 +150,14 @@ fn select_distinct() {
     let s = parse_select("SELECT DISTINCT status FROM orders");
     assert!(s.distinct);
     assert_eq!(s.columns.len(), 1);
+    round_trip("SELECT DISTINCT status FROM orders");
 }
 
 #[test]
 fn select_all() {
     let s = parse_select("SELECT ALL status FROM orders");
     assert!(!s.distinct);
+    round_trip("SELECT status FROM orders");
 }
 
 #[test]
@@ -148,6 +171,7 @@ fn select_without_from() {
             ..
         }
     ));
+    round_trip("SELECT 1 + 1");
 }
 
 // ===================================================================
@@ -162,6 +186,7 @@ fn from_simple_table() {
         Some(TableRef::Table { name, schema: None, alias: None })
             if name == "users"
     ));
+    round_trip("SELECT * FROM users");
 }
 
 #[test]
@@ -172,6 +197,7 @@ fn from_table_with_as_alias() {
         Some(TableRef::Table { name, alias: Some(a), .. })
             if name == "users" && a == "u"
     ));
+    round_trip("SELECT * FROM users AS u");
 }
 
 #[test]
@@ -182,6 +208,7 @@ fn from_table_with_bare_alias() {
         Some(TableRef::Table { name, alias: Some(a), .. })
             if name == "users" && a == "u"
     ));
+    round_trip("SELECT * FROM users AS u");
 }
 
 #[test]
@@ -192,12 +219,14 @@ fn from_schema_qualified_table() {
         Some(TableRef::Table { schema: Some(sc), name, .. })
             if sc == "public" && name == "users"
     ));
+    round_trip("SELECT * FROM public.users");
 }
 
 #[test]
 fn from_subquery_with_alias() {
     let s = parse_select("SELECT t.id FROM (SELECT id FROM users) AS t");
     assert!(matches!(&s.from, Some(TableRef::Subquery { alias, .. }) if alias == "t"));
+    round_trip("SELECT t.id FROM (SELECT id FROM users) AS t");
 }
 
 #[test]
@@ -209,6 +238,7 @@ fn from_subquery_with_where() {
     } else {
         panic!("Expected subquery");
     }
+    round_trip("SELECT t.id FROM (SELECT id FROM users WHERE active = 1) AS t");
 }
 
 // ===================================================================
@@ -224,6 +254,7 @@ fn join_inner() {
     } else {
         panic!("Expected JOIN");
     }
+    round_trip("SELECT * FROM a INNER JOIN b ON a.id = b.a_id");
 }
 
 #[test]
@@ -234,6 +265,7 @@ fn join_left() {
     } else {
         panic!("Expected JOIN");
     }
+    round_trip("SELECT * FROM a LEFT JOIN b ON a.id = b.a_id");
 }
 
 #[test]
@@ -244,6 +276,7 @@ fn join_right() {
     } else {
         panic!("Expected JOIN");
     }
+    round_trip("SELECT * FROM a RIGHT JOIN b ON a.id = b.a_id");
 }
 
 #[test]
@@ -254,6 +287,7 @@ fn join_full() {
     } else {
         panic!("Expected JOIN");
     }
+    round_trip("SELECT * FROM a FULL JOIN b ON a.id = b.a_id");
 }
 
 #[test]
@@ -266,6 +300,7 @@ fn join_cross() {
     } else {
         panic!("Expected CROSS JOIN");
     }
+    round_trip("SELECT * FROM a CROSS JOIN b");
 }
 
 #[test]
@@ -276,6 +311,7 @@ fn join_left_outer() {
     } else {
         panic!("Expected LEFT OUTER JOIN");
     }
+    round_trip("SELECT * FROM a LEFT JOIN b ON a.id = b.a_id");
 }
 
 #[test]
@@ -286,6 +322,7 @@ fn join_right_outer() {
     } else {
         panic!("Expected RIGHT OUTER JOIN");
     }
+    round_trip("SELECT * FROM a RIGHT JOIN b ON a.id = b.a_id");
 }
 
 #[test]
@@ -296,6 +333,7 @@ fn join_full_outer() {
     } else {
         panic!("Expected FULL OUTER JOIN");
     }
+    round_trip("SELECT * FROM a FULL JOIN b ON a.id = b.a_id");
 }
 
 #[test]
@@ -306,6 +344,7 @@ fn join_bare_defaults_to_inner() {
     } else {
         panic!("Expected bare JOIN");
     }
+    round_trip("SELECT * FROM a INNER JOIN b ON a.id = b.a_id");
 }
 
 #[test]
@@ -317,6 +356,7 @@ fn join_using_single_column() {
     } else {
         panic!("Expected JOIN USING");
     }
+    round_trip("SELECT * FROM a INNER JOIN b USING (id)");
 }
 
 #[test]
@@ -327,6 +367,7 @@ fn join_using_multiple_columns() {
     } else {
         panic!("Expected JOIN USING");
     }
+    round_trip("SELECT * FROM a INNER JOIN b USING (id, name)");
 }
 
 #[test]
@@ -348,6 +389,7 @@ fn join_chained_three_tables() {
     } else {
         panic!("Expected chained JOIN");
     }
+    round_trip("SELECT * FROM a INNER JOIN b ON a.id = b.a_id INNER JOIN c ON b.id = c.b_id");
 }
 
 // ===================================================================
@@ -364,6 +406,7 @@ fn where_simple() {
             ..
         })
     ));
+    round_trip("SELECT * FROM users WHERE id = 1");
 }
 
 #[test]
@@ -377,6 +420,7 @@ fn where_compound_and_or() {
             ..
         })
     ));
+    round_trip("SELECT * FROM users WHERE (age > 18 AND active = 1) OR admin = 1");
 }
 
 #[test]
@@ -387,6 +431,7 @@ fn group_by_single() {
         &s.group_by[0],
         Expr::Column { name, .. } if name == "status"
     ));
+    round_trip("SELECT status, COUNT(*) FROM orders GROUP BY status");
 }
 
 #[test]
@@ -396,6 +441,7 @@ fn group_by_multiple() {
          FROM orders GROUP BY status, region",
     );
     assert_eq!(s.group_by.len(), 2);
+    round_trip("SELECT status, region, COUNT(*) FROM orders GROUP BY status, region");
 }
 
 #[test]
@@ -412,6 +458,7 @@ fn having_with_aggregate() {
             ..
         })
     ));
+    round_trip("SELECT status, COUNT(*) AS cnt FROM orders GROUP BY status HAVING COUNT(*) > 5");
 }
 
 #[test]
@@ -426,6 +473,9 @@ fn where_group_by_having_combined() {
     assert!(s.where_clause.is_some());
     assert_eq!(s.group_by.len(), 1);
     assert!(s.having.is_some());
+    round_trip(
+        "SELECT department, AVG(salary) FROM employees WHERE active = 1 GROUP BY department HAVING AVG(salary) > 50000",
+    );
 }
 
 // ===================================================================
@@ -437,18 +487,21 @@ fn order_by_default_asc() {
     let s = parse_select("SELECT * FROM users ORDER BY name");
     assert_eq!(s.order_by.len(), 1);
     assert_eq!(s.order_by[0].direction, OrderDirection::Asc);
+    round_trip("SELECT * FROM users ORDER BY name");
 }
 
 #[test]
 fn order_by_explicit_asc() {
     let s = parse_select("SELECT * FROM users ORDER BY name ASC");
     assert_eq!(s.order_by[0].direction, OrderDirection::Asc);
+    round_trip("SELECT * FROM users ORDER BY name ASC");
 }
 
 #[test]
 fn order_by_desc() {
     let s = parse_select("SELECT * FROM users ORDER BY created_at DESC");
     assert_eq!(s.order_by[0].direction, OrderDirection::Desc);
+    round_trip("SELECT * FROM users ORDER BY created_at DESC");
 }
 
 #[test]
@@ -457,6 +510,7 @@ fn order_by_multiple_columns() {
     assert_eq!(s.order_by.len(), 2);
     assert_eq!(s.order_by[0].direction, OrderDirection::Asc);
     assert_eq!(s.order_by[1].direction, OrderDirection::Desc);
+    round_trip("SELECT * FROM users ORDER BY last_name ASC, first_name DESC");
 }
 
 #[test]
@@ -467,6 +521,7 @@ fn limit_only() {
         Some(Expr::Literal(Literal::Integer(10)))
     ));
     assert!(s.offset.is_none());
+    round_trip("SELECT * FROM users LIMIT 10");
 }
 
 #[test]
@@ -480,6 +535,7 @@ fn limit_and_offset() {
         &s.offset,
         Some(Expr::Literal(Literal::Integer(20)))
     ));
+    round_trip("SELECT * FROM users LIMIT 10 OFFSET 20");
 }
 
 // ===================================================================
@@ -500,6 +556,7 @@ fn insert_with_columns() {
     } else {
         panic!("Expected VALUES");
     }
+    round_trip("INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')");
 }
 
 #[test]
@@ -511,6 +568,7 @@ fn insert_without_columns() {
     } else {
         panic!("Expected VALUES");
     }
+    round_trip("INSERT INTO users VALUES (1, 'Bob', 'b@x.com')");
 }
 
 #[test]
@@ -521,6 +579,7 @@ fn insert_multiple_rows() {
     } else {
         panic!("Expected VALUES");
     }
+    round_trip("INSERT INTO users (name) VALUES ('A'), ('B'), ('C')");
 }
 
 #[test]
@@ -530,12 +589,14 @@ fn insert_select() {
          SELECT id, name FROM users WHERE active = 0",
     );
     assert!(matches!(i.values, InsertSource::Query(_)));
+    round_trip("INSERT INTO archive (id, name) SELECT id, name FROM users WHERE active = 0");
 }
 
 #[test]
 fn insert_default_values() {
     let i = parse_insert("INSERT INTO counters DEFAULT VALUES");
     assert!(matches!(i.values, InsertSource::DefaultValues));
+    round_trip("INSERT INTO counters DEFAULT VALUES");
 }
 
 #[test]
@@ -543,6 +604,7 @@ fn insert_schema_qualified() {
     let i = parse_insert("INSERT INTO public.users (name) VALUES ('Eve')");
     assert_eq!(i.schema.as_deref(), Some("public"));
     assert_eq!(i.table, "users");
+    round_trip("INSERT INTO public.users (name) VALUES ('Eve')");
 }
 
 #[test]
@@ -559,6 +621,7 @@ fn insert_with_expressions() {
     } else {
         panic!("Expected VALUES");
     }
+    round_trip("INSERT INTO stats (value) VALUES (1 + 2)");
 }
 
 #[test]
@@ -582,6 +645,7 @@ fn insert_with_parameters() {
     } else {
         panic!("Expected VALUES");
     }
+    round_trip("INSERT INTO users (name, email) VALUES (?, ?)");
 }
 
 // ===================================================================
@@ -595,6 +659,7 @@ fn update_single_set() {
     assert_eq!(u.assignments.len(), 1);
     assert_eq!(u.assignments[0].column, "name");
     assert!(u.where_clause.is_some());
+    round_trip("UPDATE users SET name = 'Bob' WHERE id = 1");
 }
 
 #[test]
@@ -603,6 +668,7 @@ fn update_multiple_set() {
     assert_eq!(u.assignments.len(), 2);
     assert_eq!(u.assignments[0].column, "name");
     assert_eq!(u.assignments[1].column, "email");
+    round_trip("UPDATE users SET name = 'Bob', email = 'bob@x.com' WHERE id = 1");
 }
 
 #[test]
@@ -610,12 +676,14 @@ fn update_schema_qualified() {
     let u = parse_update("UPDATE public.users SET name = 'X' WHERE id = 1");
     assert_eq!(u.schema.as_deref(), Some("public"));
     assert_eq!(u.table, "users");
+    round_trip("UPDATE public.users SET name = 'X' WHERE id = 1");
 }
 
 #[test]
 fn update_with_alias() {
     let u = parse_update("UPDATE users u SET name = 'X' WHERE u.id = 1");
     assert_eq!(u.alias.as_deref(), Some("u"));
+    round_trip("UPDATE users AS u SET name = 'X' WHERE u.id = 1");
 }
 
 #[test]
@@ -627,12 +695,16 @@ fn update_with_from_clause() {
     );
     assert!(u.from.is_some());
     assert!(u.where_clause.is_some());
+    round_trip(
+        "UPDATE orders SET total = p.price FROM products AS p WHERE orders.product_id = p.id",
+    );
 }
 
 #[test]
 fn update_without_where() {
     let u = parse_update("UPDATE users SET active = 0");
     assert!(u.where_clause.is_none());
+    round_trip("UPDATE users SET active = 0");
 }
 
 #[test]
@@ -649,6 +721,7 @@ fn update_with_parameters() {
         &u.assignments[1].value,
         Expr::Parameter { name: Some(n), .. } if n == "email"
     ));
+    round_trip("UPDATE users SET name = ?, email = :email WHERE id = ?");
 }
 
 // ===================================================================
@@ -660,12 +733,14 @@ fn delete_with_where() {
     let d = parse_delete("DELETE FROM users WHERE id = 1");
     assert_eq!(d.table, "users");
     assert!(d.where_clause.is_some());
+    round_trip("DELETE FROM users WHERE id = 1");
 }
 
 #[test]
 fn delete_without_where() {
     let d = parse_delete("DELETE FROM users");
     assert!(d.where_clause.is_none());
+    round_trip("DELETE FROM users");
 }
 
 #[test]
@@ -673,12 +748,14 @@ fn delete_schema_qualified() {
     let d = parse_delete("DELETE FROM public.users WHERE id = 1");
     assert_eq!(d.schema.as_deref(), Some("public"));
     assert_eq!(d.table, "users");
+    round_trip("DELETE FROM public.users WHERE id = 1");
 }
 
 #[test]
 fn delete_with_alias() {
     let d = parse_delete("DELETE FROM users u WHERE u.active = 0");
     assert_eq!(d.alias.as_deref(), Some("u"));
+    round_trip("DELETE FROM users AS u WHERE u.active = 0");
 }
 
 #[test]
@@ -694,6 +771,7 @@ fn delete_complex_where() {
             ..
         })
     ));
+    round_trip("DELETE FROM logs WHERE created_at < 1000 AND level = 'debug'");
 }
 
 // ===================================================================
@@ -707,6 +785,7 @@ fn literal_integer() {
         &s.columns[0].expr,
         Expr::Literal(Literal::Integer(42))
     ));
+    round_trip("SELECT 42");
 }
 
 #[test]
@@ -718,6 +797,7 @@ fn literal_negative_integer() {
         Expr::Unary { op: UnaryOp::Neg, operand }
             if matches!(operand.as_ref(), Expr::Literal(Literal::Integer(7)))
     ));
+    round_trip("SELECT -7");
 }
 
 #[test]
@@ -728,6 +808,7 @@ fn literal_float() {
     } else {
         panic!("Expected float literal");
     }
+    round_trip("SELECT 9.75");
 }
 
 #[test]
@@ -737,6 +818,7 @@ fn literal_string() {
         &s.columns[0].expr,
         Expr::Literal(Literal::String(v)) if v == "hello world"
     ));
+    round_trip("SELECT 'hello world'");
 }
 
 #[test]
@@ -746,6 +828,7 @@ fn literal_blob() {
         &s.columns[0].expr,
         Expr::Literal(Literal::Blob(_))
     ));
+    round_trip("SELECT X'DEADBEEF'");
 }
 
 #[test]
@@ -755,6 +838,7 @@ fn literal_true() {
         &s.columns[0].expr,
         Expr::Literal(Literal::Boolean(true))
     ));
+    round_trip("SELECT TRUE");
 }
 
 #[test]
@@ -764,12 +848,14 @@ fn literal_false() {
         &s.columns[0].expr,
         Expr::Literal(Literal::Boolean(false))
     ));
+    round_trip("SELECT FALSE");
 }
 
 #[test]
 fn literal_null() {
     let s = parse_select("SELECT NULL");
     assert!(matches!(&s.columns[0].expr, Expr::Literal(Literal::Null)));
+    round_trip("SELECT NULL");
 }
 
 // ===================================================================
@@ -786,6 +872,7 @@ fn binop_add() {
             ..
         }
     ));
+    round_trip("SELECT 1 + 2");
 }
 
 #[test]
@@ -798,6 +885,7 @@ fn binop_sub() {
             ..
         }
     ));
+    round_trip("SELECT 5 - 3");
 }
 
 #[test]
@@ -810,6 +898,7 @@ fn binop_mul() {
             ..
         }
     ));
+    round_trip("SELECT 4 * 2");
 }
 
 #[test]
@@ -822,6 +911,7 @@ fn binop_div() {
             ..
         }
     ));
+    round_trip("SELECT 8 / 2");
 }
 
 #[test]
@@ -834,6 +924,7 @@ fn binop_mod() {
             ..
         }
     ));
+    round_trip("SELECT 7 % 3");
 }
 
 #[test]
@@ -846,6 +937,7 @@ fn binop_concat() {
             ..
         }
     ));
+    round_trip("SELECT 'a' || 'b'");
 }
 
 // ===================================================================
@@ -862,6 +954,7 @@ fn binop_eq() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE x = 1");
 }
 
 #[test]
@@ -874,6 +967,7 @@ fn binop_not_eq() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE x != 1");
 }
 
 #[test]
@@ -886,6 +980,7 @@ fn binop_lt() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE x < 1");
 }
 
 #[test]
@@ -898,6 +993,7 @@ fn binop_lt_eq() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE x <= 1");
 }
 
 #[test]
@@ -910,6 +1006,7 @@ fn binop_gt() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE x > 1");
 }
 
 #[test]
@@ -922,6 +1019,7 @@ fn binop_gt_eq() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE x >= 1");
 }
 
 // ===================================================================
@@ -938,6 +1036,7 @@ fn binop_and() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE a = 1 AND b = 2");
 }
 
 #[test]
@@ -950,6 +1049,7 @@ fn binop_or() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE a = 1 OR b = 2");
 }
 
 #[test]
@@ -962,6 +1062,7 @@ fn binop_like() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE name LIKE '%test%'");
 }
 
 // ===================================================================
@@ -978,6 +1079,7 @@ fn binop_bit_and() {
             ..
         }
     ));
+    round_trip("SELECT 5 & 3");
 }
 
 #[test]
@@ -990,6 +1092,7 @@ fn binop_bit_or() {
             ..
         }
     ));
+    round_trip("SELECT 5 | 3");
 }
 
 #[test]
@@ -1002,6 +1105,7 @@ fn binop_left_shift() {
             ..
         }
     ));
+    round_trip("SELECT 1 << 4");
 }
 
 #[test]
@@ -1014,6 +1118,7 @@ fn binop_right_shift() {
             ..
         }
     ));
+    round_trip("SELECT 16 >> 2");
 }
 
 // ===================================================================
@@ -1030,6 +1135,7 @@ fn unary_neg() {
             ..
         }
     ));
+    round_trip("SELECT -x FROM t");
 }
 
 #[test]
@@ -1042,6 +1148,7 @@ fn unary_not() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE NOT active");
 }
 
 #[test]
@@ -1054,6 +1161,7 @@ fn unary_bit_not() {
             ..
         }
     ));
+    round_trip("SELECT ~flags FROM t");
 }
 
 // ===================================================================
@@ -1077,6 +1185,7 @@ fn precedence_mul_over_add() {
     } else {
         panic!("Expected binary");
     }
+    round_trip("SELECT 1 + 2 * 3");
 }
 
 #[test]
@@ -1095,6 +1204,7 @@ fn precedence_left_associativity() {
     } else {
         panic!("Expected binary");
     }
+    round_trip("SELECT 1 - 2 - 3");
 }
 
 #[test]
@@ -1120,6 +1230,7 @@ fn precedence_comparison_over_and() {
     } else {
         panic!("Expected AND");
     }
+    round_trip("SELECT * FROM t WHERE a = 1 AND b = 2");
 }
 
 #[test]
@@ -1138,6 +1249,7 @@ fn precedence_and_over_or() {
     } else {
         panic!("Expected OR");
     }
+    round_trip("SELECT * FROM t WHERE a = 1 OR b = 2 AND c = 3");
 }
 
 #[test]
@@ -1150,6 +1262,7 @@ fn precedence_parens_override() {
     } else {
         panic!("Expected binary");
     }
+    round_trip("SELECT (1 + 2) * 3");
 }
 
 #[test]
@@ -1167,6 +1280,7 @@ fn precedence_nested_parens() {
     } else {
         panic!("Expected binary");
     }
+    round_trip("SELECT ((1 + 2)) * 3");
 }
 
 #[test]
@@ -1187,6 +1301,7 @@ fn precedence_unary_neg_high_binding() {
     } else {
         panic!("Expected unary neg");
     }
+    round_trip("SELECT -x * y FROM t");
 }
 
 // ===================================================================
@@ -1200,6 +1315,7 @@ fn is_null() {
         &s.where_clause,
         Some(Expr::IsNull { negated: false, .. })
     ));
+    round_trip("SELECT * FROM t WHERE x IS NULL");
 }
 
 #[test]
@@ -1209,6 +1325,7 @@ fn is_not_null() {
         &s.where_clause,
         Some(Expr::IsNull { negated: true, .. })
     ));
+    round_trip("SELECT * FROM t WHERE x IS NOT NULL");
 }
 
 // ===================================================================
@@ -1228,6 +1345,7 @@ fn between_simple() {
     } else {
         panic!("Expected BETWEEN");
     }
+    round_trip("SELECT * FROM t WHERE x BETWEEN 1 AND 10");
 }
 
 #[test]
@@ -1251,6 +1369,7 @@ fn between_with_expressions() {
     } else {
         panic!("Expected BETWEEN");
     }
+    round_trip("SELECT * FROM t WHERE x BETWEEN 1 + 1 AND 5 * 2");
 }
 
 // ===================================================================
@@ -1266,6 +1385,7 @@ fn in_integers() {
     } else {
         panic!("Expected IN");
     }
+    round_trip("SELECT * FROM t WHERE id IN (1, 2, 3)");
 }
 
 #[test]
@@ -1280,6 +1400,7 @@ fn in_strings() {
     } else {
         panic!("Expected IN");
     }
+    round_trip("SELECT * FROM t WHERE name IN ('a', 'b')");
 }
 
 // ===================================================================
@@ -1307,6 +1428,7 @@ fn case_searched() {
     } else {
         panic!("Expected CASE");
     }
+    round_trip("SELECT CASE WHEN x = 1 THEN 'one' WHEN x = 2 THEN 'two' ELSE 'other' END FROM t");
 }
 
 #[test]
@@ -1317,6 +1439,7 @@ fn case_searched_without_else() {
     } else {
         panic!("Expected CASE");
     }
+    round_trip("SELECT CASE WHEN x > 0 THEN 'pos' END FROM t");
 }
 
 #[test]
@@ -1338,6 +1461,7 @@ fn case_simple() {
     } else {
         panic!("Expected CASE");
     }
+    round_trip("SELECT CASE status WHEN 1 THEN 'active' WHEN 0 THEN 'inactive' END FROM t");
 }
 
 #[test]
@@ -1354,6 +1478,7 @@ fn case_in_where() {
             ..
         })
     ));
+    round_trip("SELECT * FROM t WHERE CASE WHEN x > 0 THEN 1 ELSE 0 END = 1");
 }
 
 // ===================================================================
@@ -1368,6 +1493,7 @@ fn cast_to_integer() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS INTEGER) FROM t");
 }
 
 #[test]
@@ -1378,6 +1504,7 @@ fn cast_to_varchar_n() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS VARCHAR(255)) FROM t");
 }
 
 #[test]
@@ -1394,6 +1521,7 @@ fn cast_to_decimal_precision_scale() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS DECIMAL(10, 2)) FROM t");
 }
 
 #[test]
@@ -1404,6 +1532,7 @@ fn cast_to_text() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(42 AS TEXT) FROM t");
 }
 
 // ===================================================================
@@ -1426,6 +1555,7 @@ fn function_count_star() {
     } else {
         panic!("Expected COUNT(*)");
     }
+    round_trip("SELECT COUNT(*) FROM t");
 }
 
 #[test]
@@ -1441,6 +1571,7 @@ fn function_count_column() {
     } else {
         panic!("Expected COUNT(id)");
     }
+    round_trip("SELECT COUNT(id) FROM t");
 }
 
 #[test]
@@ -1452,6 +1583,7 @@ fn function_count_distinct() {
     } else {
         panic!("Expected COUNT(DISTINCT ...)");
     }
+    round_trip("SELECT COUNT(DISTINCT status) FROM t");
 }
 
 #[test]
@@ -1461,6 +1593,7 @@ fn function_sum() {
         &s.columns[0].expr,
         Expr::Function(FunctionCall { name, .. }) if name == "SUM"
     ));
+    round_trip("SELECT SUM(amount) FROM orders");
 }
 
 #[test]
@@ -1470,6 +1603,7 @@ fn function_avg() {
         &s.columns[0].expr,
         Expr::Function(FunctionCall { name, .. }) if name == "AVG"
     ));
+    round_trip("SELECT AVG(price) FROM products");
 }
 
 #[test]
@@ -1479,6 +1613,7 @@ fn function_min() {
         &s.columns[0].expr,
         Expr::Function(FunctionCall { name, .. }) if name == "MIN"
     ));
+    round_trip("SELECT MIN(created_at) FROM events");
 }
 
 #[test]
@@ -1488,6 +1623,7 @@ fn function_max() {
         &s.columns[0].expr,
         Expr::Function(FunctionCall { name, .. }) if name == "MAX"
     ));
+    round_trip("SELECT MAX(score) FROM results");
 }
 
 #[test]
@@ -1499,6 +1635,7 @@ fn function_coalesce() {
     } else {
         panic!("Expected COALESCE");
     }
+    round_trip("SELECT COALESCE(a, b, 0) FROM t");
 }
 
 #[test]
@@ -1510,6 +1647,7 @@ fn function_nullif() {
     } else {
         panic!("Expected NULLIF");
     }
+    round_trip("SELECT NULLIF(x, 0) FROM t");
 }
 
 // ===================================================================
@@ -1525,6 +1663,7 @@ fn custom_function_no_args() {
     } else {
         panic!("Expected now()");
     }
+    round_trip("SELECT now()");
 }
 
 #[test]
@@ -1536,6 +1675,7 @@ fn custom_function_multi_args() {
     } else {
         panic!("Expected substr()");
     }
+    round_trip("SELECT substr(name, 1, 3) FROM t");
 }
 
 // ===================================================================
@@ -1553,6 +1693,10 @@ fn exists_in_where() {
         &s.where_clause,
         Some(Expr::Function(FunctionCall { name, .. })) if name == "EXISTS"
     ));
+    round_trip(
+        "SELECT * FROM users AS u \
+         WHERE EXISTS(SELECT 1 FROM orders AS o WHERE o.user_id = u.id)",
+    );
 }
 
 #[test]
@@ -1560,6 +1704,7 @@ fn scalar_subquery_in_select() {
     let s = parse_select("SELECT (SELECT COUNT(*) FROM orders) AS total");
     assert!(matches!(&s.columns[0].expr, Expr::Subquery(_)));
     assert_eq!(s.columns[0].alias.as_deref(), Some("total"));
+    round_trip("SELECT (SELECT COUNT(*) FROM orders) AS total");
 }
 
 #[test]
@@ -1573,6 +1718,7 @@ fn subquery_in_where() {
     } else {
         panic!("Expected binary with subquery");
     }
+    round_trip("SELECT * FROM users WHERE id = (SELECT MAX(user_id) FROM orders)");
 }
 
 // ===================================================================
@@ -1593,6 +1739,7 @@ fn param_positional() {
     } else {
         panic!("Expected parameter");
     }
+    round_trip("SELECT * FROM t WHERE id = ?");
 }
 
 #[test]
@@ -1620,6 +1767,7 @@ fn param_multiple_positional() {
     } else {
         panic!("Expected AND");
     }
+    round_trip("SELECT * FROM t WHERE a = ? AND b = ?");
 }
 
 #[test]
@@ -1633,6 +1781,7 @@ fn param_named() {
     } else {
         panic!("Expected named parameter");
     }
+    round_trip("SELECT * FROM t WHERE name = :user_name");
 }
 
 #[test]
@@ -1640,6 +1789,7 @@ fn param_mixed() {
     let s = parse_select("SELECT * FROM t WHERE a = ? AND b = :name AND c = ?");
     // Parse succeeds; positions: ?=1, :name=0, ?=2
     assert!(s.where_clause.is_some());
+    round_trip("SELECT * FROM t WHERE a = ? AND b = :name AND c = ?");
 }
 
 // ===================================================================
@@ -1654,6 +1804,7 @@ fn datatype_int() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS INTEGER) FROM t");
 }
 
 #[test]
@@ -1664,6 +1815,7 @@ fn datatype_smallint() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS SMALLINT) FROM t");
 }
 
 #[test]
@@ -1674,6 +1826,7 @@ fn datatype_bigint() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS BIGINT) FROM t");
 }
 
 #[test]
@@ -1684,6 +1837,7 @@ fn datatype_real() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS REAL) FROM t");
 }
 
 #[test]
@@ -1694,6 +1848,7 @@ fn datatype_double() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS DOUBLE) FROM t");
 }
 
 #[test]
@@ -1705,6 +1860,7 @@ fn datatype_float_maps_to_double() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS DOUBLE) FROM t");
 }
 
 #[test]
@@ -1721,6 +1877,7 @@ fn datatype_numeric() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS NUMERIC(8, 3)) FROM t");
 }
 
 #[test]
@@ -1731,6 +1888,7 @@ fn datatype_char() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS CHAR(10)) FROM t");
 }
 
 #[test]
@@ -1741,6 +1899,7 @@ fn datatype_varchar_no_length() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS VARCHAR) FROM t");
 }
 
 #[test]
@@ -1751,6 +1910,7 @@ fn datatype_boolean() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS BOOLEAN) FROM t");
 }
 
 #[test]
@@ -1761,6 +1921,7 @@ fn datatype_timestamp() {
     } else {
         panic!("Expected CAST");
     }
+    round_trip("SELECT CAST(x AS TIMESTAMP) FROM t");
 }
 
 // ===================================================================
@@ -1786,6 +1947,7 @@ fn complex_report_query() {
     assert_eq!(s.order_by.len(), 1);
     assert_eq!(s.order_by[0].direction, OrderDirection::Desc);
     assert!(s.limit.is_some());
+    round_trip("SELECT c.name, COUNT(o.id) AS order_count, SUM(o.total) AS revenue FROM customers AS c LEFT JOIN orders AS o ON c.id = o.customer_id WHERE c.active = 1 GROUP BY c.name HAVING COUNT(o.id) > 0 ORDER BY revenue DESC LIMIT 100");
 }
 
 #[test]
@@ -1810,6 +1972,7 @@ fn complex_self_join() {
     } else {
         panic!("Expected self-join");
     }
+    round_trip("SELECT e.name, m.name AS manager_name FROM employees AS e LEFT JOIN employees AS m ON e.manager_id = m.id");
 }
 
 #[test]
@@ -1830,6 +1993,7 @@ fn complex_three_table_join() {
     } else {
         panic!("Expected 3-table join");
     }
+    round_trip("SELECT u.name, o.id, p.title FROM users AS u INNER JOIN orders AS o ON u.id = o.user_id INNER JOIN products AS p ON o.product_id = p.id");
 }
 
 #[test]
@@ -1848,6 +2012,7 @@ fn complex_insert_from_select_with_join() {
     } else {
         panic!("Expected INSERT ... SELECT");
     }
+    round_trip("INSERT INTO order_summary (user_name, total) SELECT u.name, SUM(o.amount) FROM users AS u INNER JOIN orders AS o ON u.id = o.user_id GROUP BY u.name");
 }
 
 #[test]
@@ -1859,6 +2024,7 @@ fn complex_deeply_nested_arithmetic() {
     } else {
         panic!("Expected division");
     }
+    round_trip("SELECT ((1 + 2) * (3 - 4)) / 5");
 }
 
 #[test]
@@ -1877,6 +2043,7 @@ fn complex_case_with_alias_and_order_by() {
     assert_eq!(s.columns[1].alias.as_deref(), Some("grade"));
     assert!(matches!(&s.columns[1].expr, Expr::Case { .. }));
     assert_eq!(s.order_by.len(), 1);
+    round_trip("SELECT id, CASE WHEN score >= 90 THEN 'A' WHEN score >= 80 THEN 'B' ELSE 'C' END AS grade FROM students ORDER BY grade ASC");
 }
 
 #[test]
@@ -1893,6 +2060,9 @@ fn complex_where_mixing_operators() {
             ..
         })
     ));
+    round_trip(
+        "SELECT * FROM products WHERE (price > 10 AND price < 100) OR (name LIKE '%sale%' AND active = 1)",
+    );
 }
 
 #[test]
@@ -1904,6 +2074,9 @@ fn complex_update_with_subquery_in_set() {
     assert_eq!(u.assignments.len(), 1);
     assert!(matches!(&u.assignments[0].value, Expr::Subquery(_)));
     assert!(u.where_clause.is_some());
+    round_trip(
+        "UPDATE users SET rank = (SELECT COUNT(*) FROM scores WHERE scores.user_id = users.id) WHERE active = 1",
+    );
 }
 
 // ===================================================================

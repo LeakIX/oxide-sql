@@ -1,5 +1,7 @@
 //! SQL data type definitions.
 
+use core::fmt;
+
 /// SQL data types.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataType {
@@ -74,7 +76,7 @@ impl DataType {
             Self::Integer => String::from("INTEGER"),
             Self::Bigint => String::from("BIGINT"),
             Self::Real => String::from("REAL"),
-            Self::Double => String::from("DOUBLE PRECISION"),
+            Self::Double => String::from("DOUBLE"),
             Self::Decimal { precision, scale } => match (precision, scale) {
                 (Some(p), Some(s)) => format!("DECIMAL({p}, {s})"),
                 (Some(p), None) => format!("DECIMAL({p})"),
@@ -110,6 +112,12 @@ impl DataType {
             Self::Boolean => String::from("BOOLEAN"),
             Self::Custom(name) => name.clone(),
         }
+    }
+}
+
+impl fmt::Display for DataType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.to_sql())
     }
 }
 

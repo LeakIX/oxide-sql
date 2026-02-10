@@ -1,5 +1,7 @@
 //! SQL statement AST types.
 
+use core::fmt;
+
 use super::expression::Expr;
 
 /// Order direction for ORDER BY.
@@ -23,6 +25,12 @@ impl OrderDirection {
     }
 }
 
+impl fmt::Display for OrderDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Null ordering for ORDER BY.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NullOrdering {
@@ -40,6 +48,12 @@ impl NullOrdering {
             Self::First => "NULLS FIRST",
             Self::Last => "NULLS LAST",
         }
+    }
+}
+
+impl fmt::Display for NullOrdering {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -80,6 +94,12 @@ impl JoinType {
             Self::Full => "FULL JOIN",
             Self::Cross => "CROSS JOIN",
         }
+    }
+}
+
+impl fmt::Display for JoinType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -309,6 +329,269 @@ pub enum Statement {
     Update(UpdateStatement),
     /// DELETE statement.
     Delete(DeleteStatement),
+}
+
+// ===================================================================
+// Display implementations
+// ===================================================================
+
+impl fmt::Display for OrderBy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.expr, self.direction)?;
+        if let Some(nulls) = &self.nulls {
+            write!(f, " {nulls}")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for JoinClause {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.join_type, self.table)?;
+        if let Some(on) = &self.on {
+            write!(f, " ON {on}")?;
+        }
+        if !self.using.is_empty() {
+            write!(f, " USING (")?;
+            for (i, col) in self.using.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{col}")?;
+            }
+            write!(f, ")")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for TableRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Table {
+                schema,
+                name,
+                alias,
+            } => {
+                if let Some(s) = schema {
+                    write!(f, "{s}.")?;
+                }
+                write!(f, "{name}")?;
+                if let Some(a) = alias {
+                    write!(f, " AS {a}")?;
+                }
+                Ok(())
+            }
+            Self::Subquery { query, alias } => {
+                write!(f, "({query}) AS {alias}")
+            }
+            Self::Join { left, join } => {
+                write!(f, "{left} {join}")
+            }
+        }
+    }
+}
+
+impl fmt::Display for SelectColumn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.expr)?;
+        if let Some(a) = &self.alias {
+            write!(f, " AS {a}")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for SelectStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SELECT")?;
+        if self.distinct {
+            write!(f, " DISTINCT")?;
+        }
+        for (i, col) in self.columns.iter().enumerate() {
+            if i > 0 {
+                write!(f, ",")?;
+            }
+            write!(f, " {col}")?;
+        }
+        if let Some(from) = &self.from {
+            write!(f, " FROM {from}")?;
+        }
+        if let Some(w) = &self.where_clause {
+            write!(f, " WHERE {w}")?;
+        }
+        if !self.group_by.is_empty() {
+            write!(f, " GROUP BY")?;
+            for (i, g) in self.group_by.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ",")?;
+                }
+                write!(f, " {g}")?;
+            }
+        }
+        if let Some(h) = &self.having {
+            write!(f, " HAVING {h}")?;
+        }
+        if !self.order_by.is_empty() {
+            write!(f, " ORDER BY")?;
+            for (i, o) in self.order_by.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ",")?;
+                }
+                write!(f, " {o}")?;
+            }
+        }
+        if let Some(l) = &self.limit {
+            write!(f, " LIMIT {l}")?;
+        }
+        if let Some(o) = &self.offset {
+            write!(f, " OFFSET {o}")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for InsertSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Values(rows) => {
+                write!(f, "VALUES")?;
+                for (i, row) in rows.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ",")?;
+                    }
+                    write!(f, " (")?;
+                    for (j, val) in row.iter().enumerate() {
+                        if j > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{val}")?;
+                    }
+                    write!(f, ")")?;
+                }
+                Ok(())
+            }
+            Self::Query(q) => write!(f, "{q}"),
+            Self::DefaultValues => write!(f, "DEFAULT VALUES"),
+        }
+    }
+}
+
+impl fmt::Display for OnConflict {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ON CONFLICT (")?;
+        for (i, col) in self.columns.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{col}")?;
+        }
+        write!(f, ") {}", self.action)
+    }
+}
+
+impl fmt::Display for ConflictAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DoNothing => write!(f, "DO NOTHING"),
+            Self::DoUpdate(assignments) => {
+                write!(f, "DO UPDATE SET")?;
+                for (i, a) in assignments.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ",")?;
+                    }
+                    write!(f, " {a}")?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl fmt::Display for InsertStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "INSERT INTO ")?;
+        if let Some(s) = &self.schema {
+            write!(f, "{s}.")?;
+        }
+        write!(f, "{}", self.table)?;
+        if !self.columns.is_empty() {
+            write!(f, " (")?;
+            for (i, col) in self.columns.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{col}")?;
+            }
+            write!(f, ")")?;
+        }
+        write!(f, " {}", self.values)?;
+        if let Some(oc) = &self.on_conflict {
+            write!(f, " {oc}")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for UpdateAssignment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} = {}", self.column, self.value)
+    }
+}
+
+impl fmt::Display for UpdateStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "UPDATE ")?;
+        if let Some(s) = &self.schema {
+            write!(f, "{s}.")?;
+        }
+        write!(f, "{}", self.table)?;
+        if let Some(a) = &self.alias {
+            write!(f, " AS {a}")?;
+        }
+        write!(f, " SET")?;
+        for (i, a) in self.assignments.iter().enumerate() {
+            if i > 0 {
+                write!(f, ",")?;
+            }
+            write!(f, " {a}")?;
+        }
+        if let Some(from) = &self.from {
+            write!(f, " FROM {from}")?;
+        }
+        if let Some(w) = &self.where_clause {
+            write!(f, " WHERE {w}")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for DeleteStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DELETE FROM ")?;
+        if let Some(s) = &self.schema {
+            write!(f, "{s}.")?;
+        }
+        write!(f, "{}", self.table)?;
+        if let Some(a) = &self.alias {
+            write!(f, " AS {a}")?;
+        }
+        if let Some(w) = &self.where_clause {
+            write!(f, " WHERE {w}")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Select(s) => write!(f, "{s}"),
+            Self::Insert(i) => write!(f, "{i}"),
+            Self::Update(u) => write!(f, "{u}"),
+            Self::Delete(d) => write!(f, "{d}"),
+        }
+    }
 }
 
 #[cfg(test)]
