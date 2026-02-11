@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Add `Display` impls for all AST types with round-trip assertions ([#15])
+
+[#15]: https://github.com/LeakIX/oxide-sql/issues/15
+
 ## 0.1.0
 
 ### Added

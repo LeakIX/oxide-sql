@@ -1,5 +1,7 @@
 //! Expression AST types.
 
+use core::fmt;
+
 use crate::lexer::Span;
 
 /// A literal value.
@@ -96,6 +98,35 @@ impl BinaryOp {
     }
 }
 
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Integer(n) => write!(f, "{n}"),
+            Self::Float(v) => write!(f, "{v}"),
+            Self::String(s) => {
+                let escaped = s.replace('\'', "''");
+                write!(f, "'{escaped}'")
+            }
+            Self::Blob(bytes) => {
+                write!(f, "X'")?;
+                for b in bytes {
+                    write!(f, "{b:02X}")?;
+                }
+                write!(f, "'")
+            }
+            Self::Boolean(true) => write!(f, "TRUE"),
+            Self::Boolean(false) => write!(f, "FALSE"),
+            Self::Null => write!(f, "NULL"),
+        }
+    }
+}
+
+impl fmt::Display for BinaryOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Unary operators.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOp {
@@ -116,6 +147,12 @@ impl UnaryOp {
             Self::Not => "NOT",
             Self::BitNot => "~",
         }
+    }
+}
+
+impl fmt::Display for UnaryOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -234,6 +271,129 @@ pub enum Expr {
         /// Table qualifier (optional).
         table: Option<String>,
     },
+}
+
+impl fmt::Display for FunctionCall {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // EXISTS gets special handling: the subquery already
+        // contains its own parentheses in the rendered form,
+        // so we render `EXISTS(SELECT ...)` instead of
+        // `EXISTS((SELECT ...))`.
+        if self.name == "EXISTS" {
+            if let [Expr::Subquery(q)] = self.args.as_slice() {
+                return write!(f, "EXISTS({q})");
+            }
+        }
+        write!(f, "{}(", self.name)?;
+        if self.distinct {
+            write!(f, "DISTINCT ")?;
+        }
+        for (i, arg) in self.args.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{arg}")?;
+        }
+        write!(f, ")")
+    }
+}
+
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Literal(lit) => write!(f, "{lit}"),
+            Self::Column { table, name, .. } => {
+                if let Some(t) = table {
+                    write!(f, "{t}.{name}")
+                } else {
+                    write!(f, "{name}")
+                }
+            }
+            Self::Binary { left, op, right } => {
+                write!(f, "{left} {op} {right}")
+            }
+            Self::Unary { op, operand } => match op {
+                UnaryOp::Not => write!(f, "NOT {operand}"),
+                UnaryOp::Neg => write!(f, "-{operand}"),
+                UnaryOp::BitNot => write!(f, "~{operand}"),
+            },
+            Self::Function(func) => write!(f, "{func}"),
+            Self::Subquery(q) => write!(f, "({q})"),
+            Self::IsNull { expr, negated } => {
+                if *negated {
+                    write!(f, "{expr} IS NOT NULL")
+                } else {
+                    write!(f, "{expr} IS NULL")
+                }
+            }
+            Self::In {
+                expr,
+                list,
+                negated,
+            } => {
+                write!(f, "{expr}")?;
+                if *negated {
+                    write!(f, " NOT IN (")?;
+                } else {
+                    write!(f, " IN (")?;
+                }
+                for (i, item) in list.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{item}")?;
+                }
+                write!(f, ")")
+            }
+            Self::Between {
+                expr,
+                low,
+                high,
+                negated,
+            } => {
+                if *negated {
+                    write!(f, "{expr} NOT BETWEEN {low} AND {high}")
+                } else {
+                    write!(f, "{expr} BETWEEN {low} AND {high}")
+                }
+            }
+            Self::Case {
+                operand,
+                when_clauses,
+                else_clause,
+            } => {
+                write!(f, "CASE")?;
+                if let Some(op) = operand {
+                    write!(f, " {op}")?;
+                }
+                for (when, then) in when_clauses {
+                    write!(f, " WHEN {when} THEN {then}")?;
+                }
+                if let Some(el) = else_clause {
+                    write!(f, " ELSE {el}")?;
+                }
+                write!(f, " END")
+            }
+            Self::Cast { expr, data_type } => {
+                write!(f, "CAST({expr} AS {data_type})")
+            }
+            Self::Paren(inner) => write!(f, "({inner})"),
+            Self::Parameter { name, .. } => {
+                if let Some(n) = name {
+                    write!(f, ":{n}")
+                } else {
+                    write!(f, "?")
+                }
+            }
+            Self::Wildcard { table } => {
+                if let Some(t) = table {
+                    write!(f, "{t}.*")
+                } else {
+                    write!(f, "*")
+                }
+            }
+        }
+    }
 }
 
 impl Expr {
