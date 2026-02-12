@@ -18,9 +18,12 @@ use syn::{parse_macro_input, Attribute, Data, DeriveInput, Expr, Fields, Ident, 
 /// # Field Attributes
 ///
 /// - `#[column(primary_key)]` - Marks the field as primary key
-/// - `#[column(name = "column_name")]` - Specifies the SQL column name (optional,
-///   defaults to field name)
+/// - `#[column(name = "column_name")]` - Specifies the SQL column name
+///   (optional, defaults to field name)
 /// - `#[column(nullable)]` - Marks the column as nullable
+/// - `#[column(unique)]` - Marks the column as UNIQUE
+/// - `#[column(autoincrement)]` - Marks the column as AUTOINCREMENT
+/// - `#[column(default = "expr")]` - Sets a raw SQL default expression
 ///
 /// # Generated Items
 ///
@@ -69,9 +72,14 @@ fn derive_table_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
         column_infos.push(ColumnInfo {
             field_name: field_name.clone(),
             field_type: field_type.clone(),
-            column_name: column_attrs.name.unwrap_or_else(|| field_name.to_string()),
+            column_name: column_attrs
+                .name
+                .unwrap_or_else(|| field_name.to_string()),
             is_primary_key: column_attrs.primary_key,
             is_nullable: column_attrs.nullable,
+            is_unique: column_attrs.unique,
+            is_autoincrement: column_attrs.autoincrement,
+            default_expr: column_attrs.default_expr,
         });
     }
 
@@ -152,6 +160,38 @@ fn derive_table_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
         }
     };
 
+    // Generate TableSchema column entries
+    let schema_entries: Vec<TokenStream2> = column_infos
+        .iter()
+        .map(|info| {
+            let col_name = &info.column_name;
+            let field_type = &info.field_type;
+            let rust_type_str = quote!(#field_type)
+                .to_string()
+                .replace(' ', "");
+            let is_nullable = info.is_nullable;
+            let is_primary_key = info.is_primary_key;
+            let is_unique = info.is_unique;
+            let is_autoincrement = info.is_autoincrement;
+            let default_expr_token = match &info.default_expr {
+                Some(expr) => quote! { Some(#expr) },
+                None => quote! { None },
+            };
+
+            quote! {
+                ::oxide_sql_core::schema::ColumnSchema {
+                    name: #col_name,
+                    rust_type: #rust_type_str,
+                    nullable: #is_nullable,
+                    primary_key: #is_primary_key,
+                    unique: #is_unique,
+                    autoincrement: #is_autoincrement,
+                    default_expr: #default_expr_token,
+                }
+            }
+        })
+        .collect();
+
     let expanded = quote! {
         /// Column types for `#struct_name` table.
         #[allow(non_snake_case)]
@@ -169,6 +209,16 @@ fn derive_table_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
             const NAME: &'static str = #table_name;
             const COLUMNS: &'static [&'static str] = &[#(#all_column_names),*];
             #primary_key_impl
+        }
+
+        impl ::oxide_sql_core::schema::TableSchema
+            for #table_struct_name
+        {
+            const SCHEMA: &'static [
+                ::oxide_sql_core::schema::ColumnSchema
+            ] = &[
+                #(#schema_entries),*
+            ];
         }
 
         impl #table_struct_name {
@@ -200,12 +250,18 @@ struct ColumnInfo {
     column_name: String,
     is_primary_key: bool,
     is_nullable: bool,
+    is_unique: bool,
+    is_autoincrement: bool,
+    default_expr: Option<String>,
 }
 
 struct ColumnAttrs {
     name: Option<String>,
     primary_key: bool,
     nullable: bool,
+    unique: bool,
+    autoincrement: bool,
+    default_expr: Option<String>,
 }
 
 fn get_table_name(attrs: &[Attribute], struct_name: &Ident) -> syn::Result<String> {
@@ -237,6 +293,9 @@ fn parse_column_attrs(attrs: &[Attribute]) -> syn::Result<ColumnAttrs> {
         name: None,
         primary_key: false,
         nullable: false,
+        unique: false,
+        autoincrement: false,
+        default_expr: None,
     };
 
     for attr in attrs {
@@ -251,11 +310,23 @@ fn parse_column_attrs(attrs: &[Attribute]) -> syn::Result<ColumnAttrs> {
                     result.primary_key = true;
                 } else if meta.path.is_ident("nullable") {
                     result.nullable = true;
+                } else if meta.path.is_ident("unique") {
+                    result.unique = true;
+                } else if meta.path.is_ident("autoincrement") {
+                    result.autoincrement = true;
                 } else if meta.path.is_ident("name") {
                     let value: Expr = meta.value()?.parse()?;
                     if let Expr::Lit(lit) = value {
                         if let Lit::Str(s) = lit.lit {
                             result.name = Some(s.value());
+                        }
+                    }
+                } else if meta.path.is_ident("default") {
+                    let value: Expr = meta.value()?.parse()?;
+                    if let Expr::Lit(lit) = value {
+                        if let Lit::Str(s) = lit.lit {
+                            result.default_expr =
+                                Some(s.value());
                         }
                     }
                 }

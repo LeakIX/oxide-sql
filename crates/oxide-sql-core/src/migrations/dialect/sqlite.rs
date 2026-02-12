@@ -3,8 +3,10 @@
 use super::MigrationDialect;
 use crate::ast::DataType;
 use crate::migrations::operation::{
-    AlterColumnChange, AlterColumnOp, DropIndexOp, RenameColumnOp, RenameTableOp,
+    AlterColumnChange, AlterColumnOp, DropIndexOp, RenameColumnOp,
+    RenameTableOp,
 };
+use crate::schema::RustTypeMapping;
 
 /// SQLite dialect for migration SQL generation.
 #[derive(Debug, Clone, Copy, Default)]
@@ -117,6 +119,27 @@ impl MigrationDialect for SqliteDialect {
              table recreation required to remove foreign key {} from {}",
             op.name, op.table
         )
+    }
+}
+
+impl RustTypeMapping for SqliteDialect {
+    fn map_type(&self, rust_type: &str) -> DataType {
+        match rust_type {
+            "bool" => DataType::Integer,
+            "i8" | "i16" | "u8" | "u16" | "i32" | "u32" => {
+                DataType::Integer
+            }
+            "i64" | "u64" | "i128" | "u128" | "isize" | "usize" => {
+                DataType::Bigint
+            }
+            "f32" => DataType::Real,
+            "f64" => DataType::Double,
+            "String" => DataType::Text,
+            "Vec<u8>" => DataType::Blob,
+            s if s.contains("DateTime") => DataType::Text,
+            s if s.contains("NaiveDate") => DataType::Text,
+            _ => DataType::Text, // safe fallback for SQLite
+        }
     }
 }
 

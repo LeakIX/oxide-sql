@@ -2,7 +2,8 @@
 //!
 //! Defines all possible migration operations like CREATE TABLE, ADD COLUMN, etc.
 
-use super::column_builder::ColumnDefinition;
+use super::column_builder::{ColumnDefinition, DefaultValue};
+use crate::schema::{RustTypeMapping, TableSchema};
 
 /// All possible migration operations.
 #[derive(Debug, Clone, PartialEq)]
@@ -167,6 +168,59 @@ pub struct CreateTableOp {
     pub constraints: Vec<TableConstraint>,
     /// Whether to use IF NOT EXISTS.
     pub if_not_exists: bool,
+}
+
+impl CreateTableOp {
+    /// Builds a `CreateTableOp` from a `#[derive(Table)]` struct
+    /// using the given dialect for Rust-to-SQL type mapping.
+    pub fn from_table<T: TableSchema>(
+        dialect: &impl RustTypeMapping,
+    ) -> Self {
+        let columns = T::SCHEMA
+            .iter()
+            .map(|col| {
+                let inner = strip_option(col.rust_type);
+                let data_type = dialect.map_type(inner);
+                let mut def =
+                    ColumnDefinition::new(col.name, data_type);
+                def.nullable = col.nullable;
+                def.primary_key = col.primary_key;
+                def.unique = col.unique;
+                def.autoincrement = col.autoincrement;
+                if let Some(expr) = col.default_expr {
+                    def.default = Some(
+                        DefaultValue::Expression(expr.to_string()),
+                    );
+                }
+                def
+            })
+            .collect();
+        Self {
+            name: T::NAME.to_string(),
+            columns,
+            constraints: vec![],
+            if_not_exists: false,
+        }
+    }
+
+    /// Same as `from_table` but with `IF NOT EXISTS`.
+    pub fn from_table_if_not_exists<T: TableSchema>(
+        dialect: &impl RustTypeMapping,
+    ) -> Self {
+        let mut op = Self::from_table::<T>(dialect);
+        op.if_not_exists = true;
+        op
+    }
+}
+
+/// Strips `Option<T>` wrapper from a Rust type string, returning
+/// the inner type. Nullability is tracked separately via
+/// `ColumnSchema::nullable`.
+fn strip_option(rust_type: &str) -> &str {
+    rust_type
+        .strip_prefix("Option<")
+        .and_then(|s| s.strip_suffix('>'))
+        .unwrap_or(rust_type)
 }
 
 impl From<CreateTableOp> for Operation {

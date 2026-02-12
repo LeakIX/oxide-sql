@@ -4,8 +4,10 @@ use super::MigrationDialect;
 use crate::ast::DataType;
 use crate::migrations::column_builder::{ColumnDefinition, DefaultValue};
 use crate::migrations::operation::{
-    AlterColumnChange, AlterColumnOp, DropIndexOp, RenameColumnOp, RenameTableOp,
+    AlterColumnChange, AlterColumnOp, DropIndexOp, RenameColumnOp,
+    RenameTableOp,
 };
+use crate::schema::RustTypeMapping;
 
 /// PostgreSQL dialect for migration SQL generation.
 #[derive(Debug, Clone, Copy, Default)]
@@ -214,6 +216,26 @@ impl MigrationDialect for PostgresDialect {
             self.quote_identifier(&op.table),
             self.quote_identifier(&op.name)
         )
+    }
+}
+
+impl RustTypeMapping for PostgresDialect {
+    fn map_type(&self, rust_type: &str) -> DataType {
+        match rust_type {
+            "bool" => DataType::Boolean,
+            "i8" | "i16" | "u8" | "u16" => DataType::Smallint,
+            "i32" | "u32" => DataType::Integer,
+            "i64" | "u64" | "i128" | "u128" | "isize" | "usize" => {
+                DataType::Bigint
+            }
+            "f32" => DataType::Real,
+            "f64" => DataType::Double,
+            "String" => DataType::Varchar(Some(255)),
+            "Vec<u8>" => DataType::Blob,
+            s if s.contains("DateTime") => DataType::Timestamp,
+            s if s.contains("NaiveDate") => DataType::Date,
+            _ => DataType::Text,
+        }
     }
 }
 

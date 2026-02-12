@@ -559,4 +559,7 @@ pub use builder::{
 };
 pub use lexer::{Lexer, Token, TokenKind};
 pub use parser::{ParseError, Parser};
-pub use schema::{Column, Selectable, Table, TypedColumn};
+pub use schema::{
+    Column, ColumnSchema, RustTypeMapping, Selectable, Table,
+    TableSchema, TypedColumn,
+};

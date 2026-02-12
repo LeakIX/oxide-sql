@@ -6,7 +6,12 @@
 //! - Column types implementing the `Column` trait
 //! - Column accessor methods on both table and row types
 
-use oxide_sql_core::schema::{Column, Table};
+use oxide_sql_core::ast::DataType;
+use oxide_sql_core::migrations::{
+    CreateTableOp, DefaultValue, DuckDbDialect, MigrationDialect,
+    PostgresDialect, SqliteDialect,
+};
+use oxide_sql_core::schema::{Column, Table, TableSchema};
 use oxide_sql_derive::Table;
 
 // =============================================================================
@@ -354,4 +359,210 @@ fn test_column_types_are_debug() {
     assert_debug::<UserColumns::Name>();
     assert_debug::<UserColumns::Email>();
     assert_debug::<UserTable>();
+}
+
+// =============================================================================
+// Test: TableSchema is generated for all derive(Table) structs
+// =============================================================================
+
+#[test]
+fn test_table_schema_generated() {
+    let schema = UserTable::SCHEMA;
+    assert_eq!(schema.len(), 3);
+
+    assert_eq!(schema[0].name, "id");
+    assert_eq!(schema[0].rust_type, "i64");
+    assert!(schema[0].primary_key);
+    assert!(!schema[0].nullable);
+    assert!(!schema[0].unique);
+    assert!(!schema[0].autoincrement);
+    assert!(schema[0].default_expr.is_none());
+
+    assert_eq!(schema[1].name, "name");
+    assert_eq!(schema[1].rust_type, "String");
+    assert!(!schema[1].primary_key);
+    assert!(!schema[1].nullable);
+
+    assert_eq!(schema[2].name, "email");
+    assert_eq!(schema[2].rust_type, "Option<String>");
+    assert!(schema[2].nullable);
+}
+
+// =============================================================================
+// Test: New column attributes (unique, autoincrement, default)
+// =============================================================================
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Table)]
+#[table(name = "users_full")]
+pub struct UserFull {
+    #[column(primary_key, autoincrement)]
+    pub id: i64,
+    #[column(unique)]
+    pub name: String,
+    #[column(nullable)]
+    pub email: Option<String>,
+    #[column(default = "TRUE")]
+    pub active: bool,
+    pub created_at: String,
+}
+
+#[test]
+fn test_new_column_attrs_in_schema() {
+    let schema = UserFullTable::SCHEMA;
+    assert_eq!(schema.len(), 5);
+
+    // id: primary_key + autoincrement
+    assert!(schema[0].primary_key);
+    assert!(schema[0].autoincrement);
+    assert!(!schema[0].unique);
+
+    // name: unique
+    assert!(schema[1].unique);
+    assert!(!schema[1].primary_key);
+
+    // email: nullable
+    assert!(schema[2].nullable);
+
+    // active: default
+    assert_eq!(schema[3].default_expr, Some("TRUE"));
+
+    // created_at: no special attrs
+    assert!(!schema[4].primary_key);
+    assert!(!schema[4].nullable);
+    assert!(!schema[4].unique);
+    assert!(!schema[4].autoincrement);
+    assert!(schema[4].default_expr.is_none());
+}
+
+// =============================================================================
+// Test: CreateTableOp::from_table with SQLite dialect
+// =============================================================================
+
+#[test]
+fn test_from_table_sqlite() {
+    let dialect = SqliteDialect::new();
+    let op = CreateTableOp::from_table::<UserFullTable>(&dialect);
+
+    assert_eq!(op.name, "users_full");
+    assert_eq!(op.columns.len(), 5);
+    assert!(!op.if_not_exists);
+
+    let id = &op.columns[0];
+    assert_eq!(id.name, "id");
+    assert_eq!(id.data_type, DataType::Bigint);
+    assert!(id.primary_key);
+    assert!(id.autoincrement);
+    assert!(!id.nullable);
+
+    let name = &op.columns[1];
+    assert_eq!(name.data_type, DataType::Text);
+    assert!(name.unique);
+
+    let email = &op.columns[2];
+    assert!(email.nullable);
+    assert_eq!(email.data_type, DataType::Text);
+
+    let active = &op.columns[3];
+    assert_eq!(active.data_type, DataType::Integer);
+    assert_eq!(
+        active.default,
+        Some(DefaultValue::Expression("TRUE".into()))
+    );
+
+    let created_at = &op.columns[4];
+    assert_eq!(created_at.data_type, DataType::Text);
+}
+
+// =============================================================================
+// Test: CreateTableOp::from_table with PostgreSQL dialect
+// =============================================================================
+
+#[test]
+fn test_from_table_postgres() {
+    let dialect = PostgresDialect::new();
+    let op = CreateTableOp::from_table::<UserFullTable>(&dialect);
+
+    assert_eq!(op.name, "users_full");
+
+    let id = &op.columns[0];
+    assert_eq!(id.data_type, DataType::Bigint);
+
+    let name = &op.columns[1];
+    assert_eq!(name.data_type, DataType::Varchar(Some(255)));
+
+    let email = &op.columns[2];
+    assert_eq!(email.data_type, DataType::Varchar(Some(255)));
+
+    let active = &op.columns[3];
+    assert_eq!(active.data_type, DataType::Boolean);
+
+    let created_at = &op.columns[4];
+    assert_eq!(created_at.data_type, DataType::Varchar(Some(255)));
+}
+
+// =============================================================================
+// Test: CreateTableOp::from_table with DuckDB dialect
+// =============================================================================
+
+#[test]
+fn test_from_table_duckdb() {
+    let dialect = DuckDbDialect::new();
+    let op = CreateTableOp::from_table::<UserFullTable>(&dialect);
+
+    assert_eq!(op.name, "users_full");
+
+    let name = &op.columns[1];
+    assert_eq!(name.data_type, DataType::Varchar(None));
+
+    let active = &op.columns[3];
+    assert_eq!(active.data_type, DataType::Boolean);
+}
+
+// =============================================================================
+// Test: from_table_if_not_exists
+// =============================================================================
+
+#[test]
+fn test_from_table_if_not_exists() {
+    let dialect = SqliteDialect::new();
+    let op =
+        CreateTableOp::from_table_if_not_exists::<UserFullTable>(
+            &dialect,
+        );
+    assert!(op.if_not_exists);
+    assert_eq!(op.name, "users_full");
+}
+
+// =============================================================================
+// Test: from_table roundtrip to SQL
+// =============================================================================
+
+#[test]
+fn test_from_table_roundtrip_sql() {
+    let dialect = SqliteDialect::new();
+    let op = CreateTableOp::from_table::<UserFullTable>(&dialect);
+    let sql = dialect.create_table(&op);
+    assert!(sql.contains("CREATE TABLE"));
+    assert!(sql.contains("\"users_full\""));
+    assert!(sql.contains("\"id\""));
+    assert!(sql.contains("\"name\""));
+    assert!(sql.contains("AUTOINCREMENT"));
+    assert!(sql.contains("UNIQUE"));
+    assert!(sql.contains("DEFAULT TRUE"));
+}
+
+// =============================================================================
+// Test: Option<T> is stripped for type mapping
+// =============================================================================
+
+#[test]
+fn test_option_stripped_for_type_mapping() {
+    let dialect = PostgresDialect::new();
+    let op = CreateTableOp::from_table::<UserFullTable>(&dialect);
+
+    // email is Option<String>, should map to VARCHAR(255) not Text
+    let email = &op.columns[2];
+    assert_eq!(email.data_type, DataType::Varchar(Some(255)));
+    assert!(email.nullable);
 }
