@@ -4,8 +4,7 @@ use super::MigrationDialect;
 use crate::ast::DataType;
 use crate::migrations::column_builder::{ColumnDefinition, DefaultValue};
 use crate::migrations::operation::{
-    AlterColumnChange, AlterColumnOp, CreateTableOp, DropIndexOp,
-    RenameColumnOp, RenameTableOp,
+    AlterColumnChange, AlterColumnOp, CreateTableOp, DropIndexOp, RenameColumnOp, RenameTableOp,
 };
 use crate::schema::RustTypeMapping;
 
@@ -266,9 +265,7 @@ impl RustTypeMapping for DuckDbDialect {
             "bool" => DataType::Boolean,
             "i8" | "i16" | "u8" | "u16" => DataType::Smallint,
             "i32" | "u32" => DataType::Integer,
-            "i64" | "u64" | "i128" | "u128" | "isize" | "usize" => {
-                DataType::Bigint
-            }
+            "i64" | "u64" | "i128" | "u128" | "isize" | "usize" => DataType::Bigint,
             "f32" => DataType::Real,
             "f64" => DataType::Double,
             "String" => DataType::Varchar(None),

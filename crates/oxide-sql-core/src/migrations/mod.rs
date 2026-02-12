@@ -48,9 +48,9 @@ mod state;
 mod table_builder;
 
 pub use column_builder::{
-    bigint, binary, blob, boolean, char, date, datetime, decimal, double, integer, numeric, real,
-    smallint, text, time, timestamp, varbinary, varchar, ColumnBuilder, ColumnDefinition,
-    DefaultValue, ForeignKeyRef,
+    ColumnBuilder, ColumnDefinition, DefaultValue, ForeignKeyRef, bigint, binary, blob, boolean,
+    char, date, datetime, decimal, double, integer, numeric, real, smallint, text, time, timestamp,
+    varbinary, varchar,
 };
 pub use dialect::{DuckDbDialect, MigrationDialect, PostgresDialect, SqliteDialect};
 pub use migration::{Migration, MigrationRunner, MigrationStatus};

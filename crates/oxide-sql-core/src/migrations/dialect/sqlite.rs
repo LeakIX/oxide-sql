@@ -3,8 +3,7 @@
 use super::MigrationDialect;
 use crate::ast::DataType;
 use crate::migrations::operation::{
-    AlterColumnChange, AlterColumnOp, DropIndexOp, RenameColumnOp,
-    RenameTableOp,
+    AlterColumnChange, AlterColumnOp, DropIndexOp, RenameColumnOp, RenameTableOp,
 };
 use crate::schema::RustTypeMapping;
 
@@ -126,12 +125,8 @@ impl RustTypeMapping for SqliteDialect {
     fn map_type(&self, rust_type: &str) -> DataType {
         match rust_type {
             "bool" => DataType::Integer,
-            "i8" | "i16" | "u8" | "u16" | "i32" | "u32" => {
-                DataType::Integer
-            }
-            "i64" | "u64" | "i128" | "u128" | "isize" | "usize" => {
-                DataType::Bigint
-            }
+            "i8" | "i16" | "u8" | "u16" | "i32" | "u32" => DataType::Integer,
+            "i64" | "u64" | "i128" | "u128" | "isize" | "usize" => DataType::Bigint,
             "f32" => DataType::Real,
             "f64" => DataType::Double,
             "String" => DataType::Text,

@@ -6,7 +6,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, Attribute, Data, DeriveInput, Expr, Fields, Ident, Lit, Meta, Type};
+use syn::{Attribute, Data, DeriveInput, Expr, Fields, Ident, Lit, Meta, Type, parse_macro_input};
 
 /// Derives the `Table` trait for a struct, generating type-safe column accessors.
 ///
@@ -72,9 +72,7 @@ fn derive_table_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
         column_infos.push(ColumnInfo {
             field_name: field_name.clone(),
             field_type: field_type.clone(),
-            column_name: column_attrs
-                .name
-                .unwrap_or_else(|| field_name.to_string()),
+            column_name: column_attrs.name.unwrap_or_else(|| field_name.to_string()),
             is_primary_key: column_attrs.primary_key,
             is_nullable: column_attrs.nullable,
             is_unique: column_attrs.unique,
@@ -166,9 +164,7 @@ fn derive_table_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
         .map(|info| {
             let col_name = &info.column_name;
             let field_type = &info.field_type;
-            let rust_type_str = quote!(#field_type)
-                .to_string()
-                .replace(' ', "");
+            let rust_type_str = quote!(#field_type).to_string().replace(' ', "");
             let is_nullable = info.is_nullable;
             let is_primary_key = info.is_primary_key;
             let is_unique = info.is_unique;
@@ -325,8 +321,7 @@ fn parse_column_attrs(attrs: &[Attribute]) -> syn::Result<ColumnAttrs> {
                     let value: Expr = meta.value()?.parse()?;
                     if let Expr::Lit(lit) = value {
                         if let Lit::Str(s) = lit.lit {
-                            result.default_expr =
-                                Some(s.value());
+                            result.default_expr = Some(s.value());
                         }
                     }
                 }

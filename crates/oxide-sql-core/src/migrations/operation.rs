@@ -173,24 +173,19 @@ pub struct CreateTableOp {
 impl CreateTableOp {
     /// Builds a `CreateTableOp` from a `#[derive(Table)]` struct
     /// using the given dialect for Rust-to-SQL type mapping.
-    pub fn from_table<T: TableSchema>(
-        dialect: &impl RustTypeMapping,
-    ) -> Self {
+    pub fn from_table<T: TableSchema>(dialect: &impl RustTypeMapping) -> Self {
         let columns = T::SCHEMA
             .iter()
             .map(|col| {
                 let inner = strip_option(col.rust_type);
                 let data_type = dialect.map_type(inner);
-                let mut def =
-                    ColumnDefinition::new(col.name, data_type);
+                let mut def = ColumnDefinition::new(col.name, data_type);
                 def.nullable = col.nullable;
                 def.primary_key = col.primary_key;
                 def.unique = col.unique;
                 def.autoincrement = col.autoincrement;
                 if let Some(expr) = col.default_expr {
-                    def.default = Some(
-                        DefaultValue::Expression(expr.to_string()),
-                    );
+                    def.default = Some(DefaultValue::Expression(expr.to_string()));
                 }
                 def
             })
@@ -204,9 +199,7 @@ impl CreateTableOp {
     }
 
     /// Same as `from_table` but with `IF NOT EXISTS`.
-    pub fn from_table_if_not_exists<T: TableSchema>(
-        dialect: &impl RustTypeMapping,
-    ) -> Self {
+    pub fn from_table_if_not_exists<T: TableSchema>(dialect: &impl RustTypeMapping) -> Self {
         let mut op = Self::from_table::<T>(dialect);
         op.if_not_exists = true;
         op
@@ -493,7 +486,7 @@ impl From<RawSqlOp> for Operation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migrations::column_builder::{bigint, varchar, ForeignKeyAction};
+    use crate::migrations::column_builder::{ForeignKeyAction, bigint, varchar};
 
     #[test]
     fn test_drop_table_operation() {

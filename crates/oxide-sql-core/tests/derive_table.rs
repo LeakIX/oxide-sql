@@ -8,8 +8,7 @@
 
 use oxide_sql_core::ast::DataType;
 use oxide_sql_core::migrations::{
-    CreateTableOp, DefaultValue, DuckDbDialect, MigrationDialect,
-    PostgresDialect, SqliteDialect,
+    CreateTableOp, DefaultValue, DuckDbDialect, MigrationDialect, PostgresDialect, SqliteDialect,
 };
 use oxide_sql_core::schema::{Column, Table, TableSchema};
 use oxide_sql_derive::Table;
@@ -526,10 +525,7 @@ fn test_from_table_duckdb() {
 #[test]
 fn test_from_table_if_not_exists() {
     let dialect = SqliteDialect::new();
-    let op =
-        CreateTableOp::from_table_if_not_exists::<UserFullTable>(
-            &dialect,
-        );
+    let op = CreateTableOp::from_table_if_not_exists::<UserFullTable>(&dialect);
     assert!(op.if_not_exists);
     assert_eq!(op.name, "users_full");
 }

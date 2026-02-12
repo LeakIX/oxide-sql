@@ -24,7 +24,9 @@ fn complex_report_query() {
     assert_eq!(s.order_by.len(), 1);
     assert_eq!(s.order_by[0].direction, OrderDirection::Desc);
     assert!(s.limit.is_some());
-    round_trip("SELECT c.name, COUNT(o.id) AS order_count, SUM(o.total) AS revenue FROM customers AS c LEFT JOIN orders AS o ON c.id = o.customer_id WHERE c.active = 1 GROUP BY c.name HAVING COUNT(o.id) > 0 ORDER BY revenue DESC LIMIT 100");
+    round_trip(
+        "SELECT c.name, COUNT(o.id) AS order_count, SUM(o.total) AS revenue FROM customers AS c LEFT JOIN orders AS o ON c.id = o.customer_id WHERE c.active = 1 GROUP BY c.name HAVING COUNT(o.id) > 0 ORDER BY revenue DESC LIMIT 100",
+    );
 }
 
 #[test]
@@ -49,7 +51,9 @@ fn complex_self_join() {
     } else {
         panic!("Expected self-join");
     }
-    round_trip("SELECT e.name, m.name AS manager_name FROM employees AS e LEFT JOIN employees AS m ON e.manager_id = m.id");
+    round_trip(
+        "SELECT e.name, m.name AS manager_name FROM employees AS e LEFT JOIN employees AS m ON e.manager_id = m.id",
+    );
 }
 
 #[test]
@@ -69,7 +73,9 @@ fn complex_three_table_join() {
     } else {
         panic!("Expected 3-table join");
     }
-    round_trip("SELECT u.name, o.id, p.title FROM users AS u INNER JOIN orders AS o ON u.id = o.user_id INNER JOIN products AS p ON o.product_id = p.id");
+    round_trip(
+        "SELECT u.name, o.id, p.title FROM users AS u INNER JOIN orders AS o ON u.id = o.user_id INNER JOIN products AS p ON o.product_id = p.id",
+    );
 }
 
 #[test]
@@ -88,7 +94,9 @@ fn complex_insert_from_select_with_join() {
     } else {
         panic!("Expected INSERT ... SELECT");
     }
-    round_trip("INSERT INTO order_summary (user_name, total) SELECT u.name, SUM(o.amount) FROM users AS u INNER JOIN orders AS o ON u.id = o.user_id GROUP BY u.name");
+    round_trip(
+        "INSERT INTO order_summary (user_name, total) SELECT u.name, SUM(o.amount) FROM users AS u INNER JOIN orders AS o ON u.id = o.user_id GROUP BY u.name",
+    );
 }
 
 #[test]
@@ -118,7 +126,9 @@ fn complex_case_with_alias_and_order_by() {
     assert_eq!(s.columns[1].alias.as_deref(), Some("grade"));
     assert!(matches!(&s.columns[1].expr, Expr::Case { .. }));
     assert_eq!(s.order_by.len(), 1);
-    round_trip("SELECT id, CASE WHEN score >= 90 THEN 'A' WHEN score >= 80 THEN 'B' ELSE 'C' END AS grade FROM students ORDER BY grade ASC");
+    round_trip(
+        "SELECT id, CASE WHEN score >= 90 THEN 'A' WHEN score >= 80 THEN 'B' ELSE 'C' END AS grade FROM students ORDER BY grade ASC",
+    );
 }
 
 #[test]

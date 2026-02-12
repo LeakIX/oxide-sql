@@ -555,11 +555,10 @@ pub mod schema;
 
 pub use ast::{Expr, Statement};
 pub use builder::{
-    col, dyn_col, Delete, DeleteDyn, Insert, InsertDyn, Select, SelectDyn, Update, UpdateDyn,
+    Delete, DeleteDyn, Insert, InsertDyn, Select, SelectDyn, Update, UpdateDyn, col, dyn_col,
 };
 pub use lexer::{Lexer, Token, TokenKind};
 pub use parser::{ParseError, Parser};
 pub use schema::{
-    Column, ColumnSchema, RustTypeMapping, Selectable, Table,
-    TableSchema, TypedColumn,
+    Column, ColumnSchema, RustTypeMapping, Selectable, Table, TableSchema, TypedColumn,
 };

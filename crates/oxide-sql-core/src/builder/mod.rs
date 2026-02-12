@@ -59,13 +59,13 @@ pub mod value;
 
 // Dynamic (string-based) builders
 pub use delete::{DeleteDyn, SafeDeleteDyn, SafeDeleteDynWithWhere};
-pub use expr::{dyn_col, ColumnRef, ExprBuilder};
+pub use expr::{ColumnRef, ExprBuilder, dyn_col};
 pub use insert::InsertDyn;
 pub use select::SelectDyn;
 pub use update::UpdateDyn;
 
 // Type-safe builders (recommended - these are the default names)
-pub use typed::{col, Delete, Insert, Select, Update};
+pub use typed::{Delete, Insert, Select, Update, col};
 
 // Common types
 pub use value::{SqlValue, ToSqlValue};
