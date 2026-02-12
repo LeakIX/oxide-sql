@@ -209,7 +209,7 @@ impl CreateTableOp {
 /// Strips `Option<T>` wrapper from a Rust type string, returning
 /// the inner type. Nullability is tracked separately via
 /// `ColumnSchema::nullable`.
-fn strip_option(rust_type: &str) -> &str {
+pub(super) fn strip_option(rust_type: &str) -> &str {
     rust_type
         .strip_prefix("Option<")
         .and_then(|s| s.strip_suffix('>'))

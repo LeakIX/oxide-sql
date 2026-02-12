@@ -42,8 +42,11 @@
 
 mod column_builder;
 pub mod dialect;
+pub mod diff;
+pub mod introspect;
 mod migration;
 mod operation;
+pub mod snapshot;
 mod state;
 mod table_builder;
 
@@ -53,12 +56,15 @@ pub use column_builder::{
     varbinary, varchar,
 };
 pub use dialect::{DuckDbDialect, MigrationDialect, PostgresDialect, SqliteDialect};
+pub use diff::{AmbiguousChange, SchemaDiff, auto_diff_schema, auto_diff_table};
+pub use introspect::Introspect;
 pub use migration::{Migration, MigrationRunner, MigrationStatus};
 pub use operation::{
-    AddColumnOp, AddForeignKeyOp, AlterColumnOp, CreateIndexOp, CreateTableOp, DropColumnOp,
-    DropForeignKeyOp, DropIndexOp, DropTableOp, IndexType, Operation, RawSqlOp, RenameColumnOp,
-    RenameTableOp,
+    AddColumnOp, AddForeignKeyOp, AlterColumnChange, AlterColumnOp, CreateIndexOp, CreateTableOp,
+    DropColumnOp, DropForeignKeyOp, DropIndexOp, DropTableOp, IndexType, Operation, RawSqlOp,
+    RenameColumnOp, RenameTableOp,
 };
+pub use snapshot::{ColumnSnapshot, SchemaSnapshot, TableSnapshot};
 pub use state::MigrationState;
 pub use table_builder::{
     CreateTableBuilder, DropTableBuilder, HasColumns, HasName, NoColumns, NoName,

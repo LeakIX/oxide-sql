@@ -7,6 +7,7 @@
 //! - Type-safe SQL builders using the typestate pattern
 //! - Protection against SQL injection through parameterized queries
 //! - A type-safe migrations system (Django-like)
+//! - A schema diff engine for automatic migration generation
 //!
 //! ## Defining Tables with `#[derive(Table)]`
 //!
@@ -544,6 +545,331 @@
 //! | [`SqliteDialect`](migrations::SqliteDialect) | `AUTOINCREMENT` keyword | Limited `ALTER TABLE`; dates stored as `TEXT` |
 //! | [`PostgresDialect`](migrations::PostgresDialect) | `SERIAL` / `BIGSERIAL` types | Full `ALTER COLUMN` support |
 //! | [`DuckDbDialect`](migrations::DuckDbDialect) | `CREATE SEQUENCE` + `DEFAULT nextval(...)` | Sequence name: `seq_<table>_<column>` |
+//!
+//! ## Schema Diff Engine — Automatic Migration Generation
+//!
+//! The schema diff engine compares two schema snapshots and produces
+//! `Vec<Operation>`, enabling Django-like `makemigrations`. Instead
+//! of writing migration operations by hand, you can diff the current
+//! database state against your `#[derive(Table)]` structs to
+//! automatically detect what changed.
+//!
+//! ### Core types
+//!
+//! | Type | Purpose |
+//! |---|---|
+//! | [`TableSnapshot`] | Dialect-resolved snapshot of a single table (columns with `DataType`, not Rust type strings) |
+//! | [`ColumnSnapshot`] | A single column's resolved name, type, nullable, primary key, unique, autoincrement, and default |
+//! | [`SchemaSnapshot`] | A collection of `TableSnapshot`s keyed by table name |
+//! | [`SchemaDiff`] | Result of a diff: `operations: Vec<Operation>` + `ambiguous: Vec<AmbiguousChange>` |
+//! | [`AmbiguousChange`] | Changes that cannot be auto-resolved (possible column/table renames) |
+//!
+//! ### Building snapshots from `#[derive(Table)]` structs
+//!
+//! [`TableSnapshot::from_table_schema`] resolves Rust types to SQL
+//! `DataType` using the dialect's [`RustTypeMapping`], producing a
+//! dialect-aware snapshot ready for comparison:
+//!
+//! ```rust
+//! # #![allow(clippy::needless_doctest_main)]
+//! use oxide_sql_derive::Table;
+//! use oxide_sql_core::migrations::{TableSnapshot, SqliteDialect};
+//! use oxide_sql_core::schema::Table;
+//!
+//! #[derive(Table)]
+//! #[table(name = "articles")]
+//! pub struct Article {
+//!     #[column(primary_key, autoincrement)]
+//!     pub id: i64,
+//!     pub title: String,
+//!     #[column(nullable)]
+//!     pub body: Option<String>,
+//!     #[column(default = "FALSE")]
+//!     pub published: bool,
+//! }
+//!
+//! fn main() {
+//! let dialect = SqliteDialect::new();
+//! let snapshot = TableSnapshot::from_table_schema::<ArticleTable>(&dialect);
+//!
+//! assert_eq!(snapshot.name, "articles");
+//! assert_eq!(snapshot.columns.len(), 4);
+//! assert!(snapshot.column("id").unwrap().primary_key);
+//! assert!(snapshot.column("body").unwrap().nullable);
+//! }
+//! ```
+//!
+//! ### Diffing a single table
+//!
+//! [`auto_diff_table`] compares a table's current snapshot against the
+//! desired schema from a `#[derive(Table)]` struct:
+//!
+//! ```rust
+//! # #![allow(clippy::needless_doctest_main)]
+//! use oxide_sql_derive::Table;
+//! use oxide_sql_core::migrations::{
+//!     TableSnapshot, SqliteDialect, auto_diff_table, Operation,
+//! };
+//! use oxide_sql_core::schema::Table;
+//! use oxide_sql_core::ast::DataType;
+//!
+//! #[derive(Table)]
+//! #[table(name = "articles")]
+//! pub struct ArticleV2 {
+//!     #[column(primary_key, autoincrement)]
+//!     pub id: i64,
+//!     pub title: String,
+//!     #[column(nullable)]
+//!     pub body: Option<String>,
+//!     #[column(default = "FALSE")]
+//!     pub published: bool,
+//!     #[column(nullable)]
+//!     pub category: Option<String>,
+//! }
+//!
+//! fn main() {
+//! let dialect = SqliteDialect::new();
+//!
+//! // Simulate "current" DB state: articles without the category column.
+//! let current = TableSnapshot {
+//!     name: "articles".to_string(),
+//!     columns: vec![
+//!         oxide_sql_core::migrations::ColumnSnapshot {
+//!             name: "id".into(),
+//!             data_type: DataType::Bigint,
+//!             nullable: false,
+//!             primary_key: true,
+//!             unique: false,
+//!             autoincrement: true,
+//!             default: None,
+//!         },
+//!         oxide_sql_core::migrations::ColumnSnapshot {
+//!             name: "title".into(),
+//!             data_type: DataType::Text,
+//!             nullable: false,
+//!             primary_key: false,
+//!             unique: false,
+//!             autoincrement: false,
+//!             default: None,
+//!         },
+//!         oxide_sql_core::migrations::ColumnSnapshot {
+//!             name: "body".into(),
+//!             data_type: DataType::Text,
+//!             nullable: true,
+//!             primary_key: false,
+//!             unique: false,
+//!             autoincrement: false,
+//!             default: None,
+//!         },
+//!         oxide_sql_core::migrations::ColumnSnapshot {
+//!             name: "published".into(),
+//!             data_type: DataType::Integer,
+//!             nullable: false,
+//!             primary_key: false,
+//!             unique: false,
+//!             autoincrement: false,
+//!             default: Some(oxide_sql_core::migrations::DefaultValue::Expression(
+//!                 "FALSE".into(),
+//!             )),
+//!         },
+//!     ],
+//! };
+//!
+//! let diff = auto_diff_table::<ArticleV2Table>(&current, &dialect);
+//!
+//! // Detects that "category" was added.
+//! assert!(diff.operations.iter().any(|op| matches!(
+//!     op,
+//!     Operation::AddColumn(add) if add.column.name == "category"
+//! )));
+//! }
+//! ```
+//!
+//! ### Diffing entire schemas
+//!
+//! [`auto_diff_schema`] compares two [`SchemaSnapshot`]s and detects
+//! new tables, dropped tables, and per-table column changes:
+//!
+//! ```rust
+//! use oxide_sql_core::migrations::{
+//!     SchemaSnapshot, TableSnapshot, ColumnSnapshot, Operation,
+//!     auto_diff_schema,
+//! };
+//! use oxide_sql_core::ast::DataType;
+//!
+//! let mut current = SchemaSnapshot::new();
+//! let mut desired = SchemaSnapshot::new();
+//!
+//! // "current" has a "users" table; "desired" adds a "posts" table.
+//! current.add_table(TableSnapshot {
+//!     name: "users".into(),
+//!     columns: vec![ColumnSnapshot {
+//!         name: "id".into(),
+//!         data_type: DataType::Bigint,
+//!         nullable: false,
+//!         primary_key: true,
+//!         unique: false,
+//!         autoincrement: true,
+//!         default: None,
+//!     }],
+//! });
+//! desired.add_table(TableSnapshot {
+//!     name: "users".into(),
+//!     columns: vec![ColumnSnapshot {
+//!         name: "id".into(),
+//!         data_type: DataType::Bigint,
+//!         nullable: false,
+//!         primary_key: true,
+//!         unique: false,
+//!         autoincrement: true,
+//!         default: None,
+//!     }],
+//! });
+//! desired.add_table(TableSnapshot {
+//!     name: "posts".into(),
+//!     columns: vec![ColumnSnapshot {
+//!         name: "id".into(),
+//!         data_type: DataType::Bigint,
+//!         nullable: false,
+//!         primary_key: true,
+//!         unique: false,
+//!         autoincrement: true,
+//!         default: None,
+//!     }],
+//! });
+//!
+//! let diff = auto_diff_schema(&current, &desired);
+//! assert!(diff.operations.iter().any(|op| matches!(
+//!     op,
+//!     Operation::CreateTable(ct) if ct.name == "posts"
+//! )));
+//! ```
+//!
+//! ### What the diff engine detects
+//!
+//! | Change | Detected? | Mechanism |
+//! |---|---|---|
+//! | New table | Yes | In desired, not in current |
+//! | Dropped table | Yes | In current, not in desired |
+//! | Added column | Yes | Column in desired, not in current |
+//! | Dropped column | Yes | Column in current, not in desired |
+//! | Column type change | Yes | `data_type` differs |
+//! | Nullable change | Yes | `nullable` differs |
+//! | Default add/change | Yes | `default` differs |
+//! | Default removed | Yes | Old has default, new does not |
+//! | Column rename | **No** | Flagged as [`AmbiguousChange::PossibleRename`] |
+//! | Table rename | **No** | Flagged as [`AmbiguousChange::PossibleTableRename`] |
+//! | Foreign key changes | **No** | Not tracked in `ColumnSchema` |
+//!
+//! ### Ambiguous changes
+//!
+//! When exactly one column is dropped and one is added with the same
+//! type, the diff engine flags this as a possible rename rather than
+//! generating a drop+add pair. The same heuristic applies at the table
+//! level. Your migration tooling should present these to the user for
+//! confirmation:
+//!
+//! ```rust
+//! use oxide_sql_core::migrations::{
+//!     AmbiguousChange, TableSnapshot, ColumnSnapshot, auto_diff_schema,
+//!     SchemaSnapshot,
+//! };
+//! use oxide_sql_core::ast::DataType;
+//!
+//! let mut current = SchemaSnapshot::new();
+//! current.add_table(TableSnapshot {
+//!     name: "users".into(),
+//!     columns: vec![ColumnSnapshot {
+//!         name: "id".into(),
+//!         data_type: DataType::Bigint,
+//!         nullable: false,
+//!         primary_key: true,
+//!         unique: false,
+//!         autoincrement: false,
+//!         default: None,
+//!     }],
+//! });
+//!
+//! // "desired" has the same structure but the table is named "accounts".
+//! let mut desired = SchemaSnapshot::new();
+//! desired.add_table(TableSnapshot {
+//!     name: "accounts".into(),
+//!     columns: vec![ColumnSnapshot {
+//!         name: "id".into(),
+//!         data_type: DataType::Bigint,
+//!         nullable: false,
+//!         primary_key: true,
+//!         unique: false,
+//!         autoincrement: false,
+//!         default: None,
+//!     }],
+//! });
+//!
+//! let diff = auto_diff_schema(&current, &desired);
+//! // No operations generated — flagged as ambiguous instead.
+//! assert!(diff.operations.is_empty());
+//! assert!(matches!(
+//!     &diff.ambiguous[0],
+//!     AmbiguousChange::PossibleTableRename {
+//!         old_table,
+//!         new_table,
+//!     } if old_table == "users" && new_table == "accounts"
+//! ));
+//! ```
+//!
+//! ### Operation ordering
+//!
+//! Operations are returned in a safe order to avoid FK constraint
+//! violations:
+//!
+//! 1. `CreateTable` — new tables first
+//! 2. `AddColumn` — new columns on existing tables
+//! 3. `AlterColumn` — type/nullable/default changes
+//! 4. `DropColumn` — removed columns
+//! 5. `DropTable` — removed tables last
+//!
+//! ### Database introspection
+//!
+//! The [`Introspect`] trait defines how to read the current schema from
+//! a live database connection:
+//!
+//! ```rust,ignore
+//! use oxide_sql_core::migrations::{Introspect, SchemaSnapshot};
+//!
+//! // Driver crates implement this:
+//! impl Introspect for MyDatabaseConnection {
+//!     type Error = MyError;
+//!     fn introspect_schema(&self) -> Result<SchemaSnapshot, MyError> {
+//!         // Query information_schema / sqlite_master / etc.
+//!     }
+//! }
+//! ```
+//!
+//! With introspection + diff, the full `makemigrations` workflow is:
+//!
+//! ```rust,ignore
+//! // 1. Introspect the current database.
+//! let current = db.introspect_schema()?;
+//!
+//! // 2. Build desired schema from derive(Table) structs.
+//! let mut desired = SchemaSnapshot::new();
+//! desired.add_from_table_schema::<UserTable>(&dialect);
+//! desired.add_from_table_schema::<PostTable>(&dialect);
+//!
+//! // 3. Diff.
+//! let diff = auto_diff_schema(&current, &desired);
+//!
+//! // 4. Generate SQL for each operation.
+//! for op in &diff.operations {
+//!     let sql = dialect.generate_sql(op);
+//!     println!("{sql}");
+//! }
+//!
+//! // 5. Handle ambiguous changes (ask user about renames).
+//! for change in &diff.ambiguous {
+//!     println!("Ambiguous: {change:?}");
+//! }
+//! ```
 
 pub mod ast;
 pub mod builder;
@@ -558,6 +884,10 @@ pub use builder::{
     Delete, DeleteDyn, Insert, InsertDyn, Select, SelectDyn, Update, UpdateDyn, col, dyn_col,
 };
 pub use lexer::{Lexer, Token, TokenKind};
+pub use migrations::{
+    AmbiguousChange, ColumnSnapshot, Introspect, SchemaDiff, SchemaSnapshot, TableSnapshot,
+    auto_diff_schema, auto_diff_table,
+};
 pub use parser::{ParseError, Parser};
 pub use schema::{
     Column, ColumnSchema, RustTypeMapping, Selectable, Table, TableSchema, TypedColumn,
