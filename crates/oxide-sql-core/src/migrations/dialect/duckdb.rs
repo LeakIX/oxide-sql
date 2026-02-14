@@ -238,6 +238,22 @@ impl MigrationDialect for DuckDbDialect {
             AlterColumnChange::DropDefault => {
                 format!("ALTER TABLE {} ALTER COLUMN {} DROP DEFAULT", table, column)
             }
+            AlterColumnChange::SetUnique(true) => {
+                format!("ALTER TABLE {} ADD UNIQUE ({})", table, column)
+            }
+            AlterColumnChange::SetUnique(false) => {
+                format!(
+                    "ALTER TABLE {} DROP CONSTRAINT \"{}_key\"",
+                    table, op.column
+                )
+            }
+            AlterColumnChange::SetAutoincrement(_) => {
+                format!(
+                    "-- DuckDB cannot ALTER autoincrement \
+                     for {}.{}; table recreation required",
+                    op.table, op.column
+                )
+            }
         }
     }
 

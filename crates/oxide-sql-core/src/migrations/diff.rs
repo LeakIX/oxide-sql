@@ -9,18 +9,62 @@ use std::collections::BTreeSet;
 use crate::schema::{RustTypeMapping, TableSchema};
 
 use super::column_builder::ColumnDefinition;
+use super::dialect::MigrationDialect;
 use super::operation::{
-    AddColumnOp, AlterColumnChange, AlterColumnOp, CreateTableOp, DropColumnOp, DropTableOp,
-    Operation,
+    AddColumnOp, AddForeignKeyOp, AlterColumnChange, AlterColumnOp, CreateIndexOp, CreateTableOp,
+    DropColumnOp, DropForeignKeyOp, DropIndexOp, DropTableOp, Operation,
 };
-use super::snapshot::{ColumnSnapshot, SchemaSnapshot, TableSnapshot};
+use super::snapshot::{
+    ColumnSnapshot, ForeignKeySnapshot, IndexSnapshot, SchemaSnapshot, TableSnapshot,
+};
+
+/// Minimum normalized similarity score (0.0–1.0) for a
+/// (dropped, added) column pair to be flagged as a possible rename.
+const RENAME_SIMILARITY_THRESHOLD: f64 = 0.4;
+
+// ================================================================
+// String similarity helpers
+// ================================================================
+
+/// Computes the Levenshtein edit distance between two strings.
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let m = a.len();
+    let n = b.len();
+    let mut prev = (0..=n).collect::<Vec<_>>();
+    let mut curr = vec![0; n + 1];
+    for i in 1..=m {
+        curr[0] = i;
+        for j in 1..=n {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[n]
+}
+
+/// Returns a normalized similarity score in `[0.0, 1.0]`.
+/// 1.0 means identical, 0.0 means completely different.
+fn similarity(a: &str, b: &str) -> f64 {
+    let max_len = a.len().max(b.len());
+    if max_len == 0 {
+        return 1.0;
+    }
+    1.0 - (levenshtein(a, b) as f64 / max_len as f64)
+}
+
+// ================================================================
+// Public types
+// ================================================================
 
 /// A change that cannot be automatically resolved and requires
 /// user intervention.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AmbiguousChange {
-    /// One column was dropped and one was added with the same type,
-    /// suggesting a possible rename.
+    /// A dropped and added column with the same type and similar
+    /// names, suggesting a possible rename.
     PossibleRename {
         /// Table containing the columns.
         table: String,
@@ -28,14 +72,55 @@ pub enum AmbiguousChange {
         old_column: String,
         /// The column that was added.
         new_column: String,
+        /// Name similarity score (0.0–1.0).
+        similarity: f64,
     },
-    /// One table was dropped and one was added with the same column
-    /// structure, suggesting a possible rename.
+    /// A dropped and added table with the same column structure,
+    /// suggesting a possible rename.
     PossibleTableRename {
         /// The table that was dropped.
         old_table: String,
         /// The table that was added.
         new_table: String,
+        /// Name similarity score (0.0–1.0).
+        similarity: f64,
+    },
+}
+
+/// Informational warnings about changes that the diff engine
+/// detected but cannot (or should not) translate into DDL
+/// operations automatically.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DiffWarning {
+    /// A column's primary key status changed. This typically
+    /// requires table recreation on most databases.
+    PrimaryKeyChange {
+        /// Table name.
+        table: String,
+        /// Column name.
+        column: String,
+        /// New value of the primary_key flag.
+        new_value: bool,
+    },
+    /// A column's autoincrement status changed. Most databases
+    /// cannot alter this without recreating the table.
+    AutoincrementChange {
+        /// Table name.
+        table: String,
+        /// Column name.
+        column: String,
+        /// New value of the autoincrement flag.
+        new_value: bool,
+    },
+    /// The relative ordering of columns changed. Most databases
+    /// cannot reorder columns without recreating the table.
+    ColumnOrderChanged {
+        /// Table name.
+        table: String,
+        /// Column names in the old order.
+        old_order: Vec<String>,
+        /// Column names in the new order.
+        new_order: Vec<String>,
     },
 }
 
@@ -46,18 +131,66 @@ pub struct SchemaDiff {
     pub operations: Vec<Operation>,
     /// Changes that may be renames and need user confirmation.
     pub ambiguous: Vec<AmbiguousChange>,
+    /// Informational warnings (destructive changes that require
+    /// manual intervention, column order changes, etc.).
+    pub warnings: Vec<DiffWarning>,
 }
 
 impl SchemaDiff {
-    /// Returns `true` if there are no changes.
+    /// Returns `true` if there are no changes at all (no ops,
+    /// no ambiguous changes, and no warnings).
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.operations.is_empty() && self.ambiguous.is_empty()
+        self.operations.is_empty() && self.ambiguous.is_empty() && self.warnings.is_empty()
+    }
+
+    /// Convenience: generates SQL for every operation using the
+    /// given dialect.
+    #[must_use]
+    pub fn to_sql(&self, dialect: &impl MigrationDialect) -> Vec<String> {
+        self.operations
+            .iter()
+            .map(|op| dialect.generate_sql(op))
+            .collect()
+    }
+
+    /// Attempts to reverse the entire diff. Returns `None` if any
+    /// operation is non-reversible.
+    #[must_use]
+    pub fn reverse(&self) -> Option<Self> {
+        let mut reversed = Vec::new();
+        for op in self.operations.iter().rev() {
+            reversed.push(op.reverse()?);
+        }
+        Some(Self {
+            operations: reversed,
+            ambiguous: vec![],
+            warnings: vec![],
+        })
+    }
+
+    /// Returns `true` if every operation is reversible.
+    #[must_use]
+    pub fn is_reversible(&self) -> bool {
+        self.operations.iter().all(Operation::is_reversible)
+    }
+
+    /// Returns references to the non-reversible operations.
+    #[must_use]
+    pub fn non_reversible_operations(&self) -> Vec<&Operation> {
+        self.operations
+            .iter()
+            .filter(|op| !op.is_reversible())
+            .collect()
     }
 }
 
-/// Compares a single table's current and desired snapshots, producing
-/// the operations needed to migrate.
+// ================================================================
+// Table-level diff
+// ================================================================
+
+/// Compares a single table's current and desired snapshots,
+/// producing the operations needed to migrate.
 fn diff_table(table_name: &str, old: &TableSnapshot, new: &TableSnapshot) -> SchemaDiff {
     let old_names: BTreeSet<&str> = old.columns.iter().map(|c| c.name.as_str()).collect();
     let new_names: BTreeSet<&str> = new.columns.iter().map(|c| c.name.as_str()).collect();
@@ -68,27 +201,43 @@ fn diff_table(table_name: &str, old: &TableSnapshot, new: &TableSnapshot) -> Sch
 
     let mut operations = Vec::new();
     let mut ambiguous = Vec::new();
+    let mut warnings = Vec::new();
 
-    // Check for possible renames: exactly 1 dropped + 1 added with
-    // the same type.
-    let mut rename_dropped = BTreeSet::new();
-    let mut rename_added = BTreeSet::new();
+    // ---- N:M rename detection with similarity scoring ----------
+    let mut rename_dropped: BTreeSet<&str> = BTreeSet::new();
+    let mut rename_added: BTreeSet<&str> = BTreeSet::new();
 
-    if dropped.len() == 1 && added.len() == 1 {
-        let old_col = old.column(dropped[0]).unwrap();
-        let new_col = new.column(added[0]).unwrap();
-        if old_col.data_type == new_col.data_type {
-            ambiguous.push(AmbiguousChange::PossibleRename {
-                table: table_name.to_string(),
-                old_column: dropped[0].to_string(),
-                new_column: added[0].to_string(),
-            });
-            rename_dropped.insert(dropped[0]);
-            rename_added.insert(added[0]);
+    // Build candidate pairs: (dropped, added, similarity)
+    let mut candidates: Vec<(&str, &str, f64)> = Vec::new();
+    for &d in &dropped {
+        let old_col = old.column(d).unwrap();
+        for &a in &added {
+            let new_col = new.column(a).unwrap();
+            if old_col.data_type == new_col.data_type {
+                let sim = similarity(d, a);
+                if sim >= RENAME_SIMILARITY_THRESHOLD {
+                    candidates.push((d, a, sim));
+                }
+            }
         }
     }
+    // Greedy matching: highest similarity first.
+    candidates.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap());
+    for (d, a, sim) in &candidates {
+        if rename_dropped.contains(d) || rename_added.contains(a) {
+            continue;
+        }
+        ambiguous.push(AmbiguousChange::PossibleRename {
+            table: table_name.to_string(),
+            old_column: d.to_string(),
+            new_column: a.to_string(),
+            similarity: *sim,
+        });
+        rename_dropped.insert(d);
+        rename_added.insert(a);
+    }
 
-    // AddColumn for truly new columns (not flagged as rename).
+    // ---- AddColumn for truly new columns -----------------------
     for &name in &added {
         if rename_added.contains(name) {
             continue;
@@ -100,7 +249,7 @@ fn diff_table(table_name: &str, old: &TableSnapshot, new: &TableSnapshot) -> Sch
         }));
     }
 
-    // AlterColumn for changed properties on existing columns.
+    // ---- AlterColumn for changed properties on common cols -----
     for &name in &common {
         let old_col = old.column(name).unwrap();
         let new_col = new.column(name).unwrap();
@@ -119,6 +268,30 @@ fn diff_table(table_name: &str, old: &TableSnapshot, new: &TableSnapshot) -> Sch
                 column: name.to_string(),
                 change: AlterColumnChange::SetNullable(new_col.nullable),
             }));
+        }
+
+        if old_col.unique != new_col.unique {
+            operations.push(Operation::AlterColumn(AlterColumnOp {
+                table: table_name.to_string(),
+                column: name.to_string(),
+                change: AlterColumnChange::SetUnique(new_col.unique),
+            }));
+        }
+
+        if old_col.primary_key != new_col.primary_key {
+            warnings.push(DiffWarning::PrimaryKeyChange {
+                table: table_name.to_string(),
+                column: name.to_string(),
+                new_value: new_col.primary_key,
+            });
+        }
+
+        if old_col.autoincrement != new_col.autoincrement {
+            warnings.push(DiffWarning::AutoincrementChange {
+                table: table_name.to_string(),
+                column: name.to_string(),
+                new_value: new_col.autoincrement,
+            });
         }
 
         match (&old_col.default, &new_col.default) {
@@ -147,7 +320,7 @@ fn diff_table(table_name: &str, old: &TableSnapshot, new: &TableSnapshot) -> Sch
         }
     }
 
-    // DropColumn for truly removed columns (not flagged as rename).
+    // ---- DropColumn for truly removed columns ------------------
     for &name in &dropped {
         if rename_dropped.contains(name) {
             continue;
@@ -158,11 +331,155 @@ fn diff_table(table_name: &str, old: &TableSnapshot, new: &TableSnapshot) -> Sch
         }));
     }
 
+    // ---- Index diff --------------------------------------------
+    diff_indexes(table_name, old, new, &mut operations);
+
+    // ---- Foreign key diff --------------------------------------
+    diff_foreign_keys(table_name, old, new, &mut operations);
+
+    // ---- Column ordering detection -----------------------------
+    detect_column_order_change(table_name, old, new, &common, &mut warnings);
+
     SchemaDiff {
         operations,
         ambiguous,
+        warnings,
     }
 }
+
+// ================================================================
+// Index / FK diffing helpers
+// ================================================================
+
+/// Two indexes are considered equivalent if they cover the same
+/// columns, uniqueness, and type. Names are ignored because they
+/// may differ between environments.
+fn indexes_equivalent(a: &IndexSnapshot, b: &IndexSnapshot) -> bool {
+    a.columns == b.columns
+        && a.unique == b.unique
+        && a.index_type == b.index_type
+        && a.condition == b.condition
+}
+
+/// Diffs indexes between old and new table snapshots.
+fn diff_indexes(
+    table_name: &str,
+    old: &TableSnapshot,
+    new: &TableSnapshot,
+    operations: &mut Vec<Operation>,
+) {
+    // Indexes present in old but not in new → DropIndex.
+    for old_idx in &old.indexes {
+        let still_exists = new.indexes.iter().any(|n| indexes_equivalent(old_idx, n));
+        if !still_exists {
+            operations.push(Operation::DropIndex(DropIndexOp {
+                name: old_idx.name.clone(),
+                table: Some(table_name.to_string()),
+                if_exists: false,
+            }));
+        }
+    }
+    // Indexes present in new but not in old → CreateIndex.
+    for new_idx in &new.indexes {
+        let already_exists = old.indexes.iter().any(|o| indexes_equivalent(o, new_idx));
+        if !already_exists {
+            operations.push(Operation::CreateIndex(CreateIndexOp {
+                name: new_idx.name.clone(),
+                table: table_name.to_string(),
+                columns: new_idx.columns.clone(),
+                unique: new_idx.unique,
+                index_type: new_idx.index_type,
+                if_not_exists: false,
+                condition: new_idx.condition.clone(),
+            }));
+        }
+    }
+}
+
+/// Two foreign keys are equivalent if they reference the same
+/// columns, target table, target columns, and actions.
+fn fks_equivalent(a: &ForeignKeySnapshot, b: &ForeignKeySnapshot) -> bool {
+    a.columns == b.columns
+        && a.references_table == b.references_table
+        && a.references_columns == b.references_columns
+        && a.on_delete == b.on_delete
+        && a.on_update == b.on_update
+}
+
+/// Diffs foreign keys between old and new table snapshots.
+fn diff_foreign_keys(
+    table_name: &str,
+    old: &TableSnapshot,
+    new: &TableSnapshot,
+    operations: &mut Vec<Operation>,
+) {
+    // FKs present in old but not in new → DropForeignKey.
+    for old_fk in &old.foreign_keys {
+        let still_exists = new.foreign_keys.iter().any(|n| fks_equivalent(old_fk, n));
+        if !still_exists {
+            if let Some(ref name) = old_fk.name {
+                operations.push(Operation::DropForeignKey(DropForeignKeyOp {
+                    table: table_name.to_string(),
+                    name: name.clone(),
+                }));
+            }
+        }
+    }
+    // FKs present in new but not in old → AddForeignKey.
+    for new_fk in &new.foreign_keys {
+        let already_exists = old.foreign_keys.iter().any(|o| fks_equivalent(o, new_fk));
+        if !already_exists {
+            operations.push(Operation::AddForeignKey(AddForeignKeyOp {
+                table: table_name.to_string(),
+                name: new_fk.name.clone(),
+                columns: new_fk.columns.clone(),
+                references_table: new_fk.references_table.clone(),
+                references_columns: new_fk.references_columns.clone(),
+                on_delete: new_fk.on_delete,
+                on_update: new_fk.on_update,
+            }));
+        }
+    }
+}
+
+// ================================================================
+// Column ordering
+// ================================================================
+
+/// Detects whether the relative order of common columns changed
+/// between old and new snapshots.
+fn detect_column_order_change(
+    table_name: &str,
+    old: &TableSnapshot,
+    new: &TableSnapshot,
+    common: &BTreeSet<&str>,
+    warnings: &mut Vec<DiffWarning>,
+) {
+    let old_order: Vec<String> = old
+        .columns
+        .iter()
+        .filter(|c| common.contains(c.name.as_str()))
+        .map(|c| c.name.clone())
+        .collect();
+    let new_order: Vec<String> = new
+        .columns
+        .iter()
+        .filter(|c| common.contains(c.name.as_str()))
+        .map(|c| c.name.clone())
+        .collect();
+
+    if old_order != new_order {
+        warnings.push(DiffWarning::ColumnOrderChanged {
+            table: table_name.to_string(),
+            old_order,
+            new_order,
+        });
+    }
+}
+
+// ================================================================
+// Helpers
+// ================================================================
 
 /// Converts a `ColumnSnapshot` into a `ColumnDefinition` for use
 /// in `AddColumnOp`.
@@ -180,6 +497,10 @@ fn snapshot_to_column_def(col: &ColumnSnapshot) -> ColumnDefinition {
         collation: None,
     }
 }
+
+// ================================================================
+// Schema-level diff
+// ================================================================
 
 /// Compares two full schema snapshots and produces the operations
 /// needed to migrate from `current` to `desired`.
@@ -209,25 +530,39 @@ pub fn auto_diff_schema(current: &SchemaSnapshot, desired: &SchemaSnapshot) -> S
     let mut drop_col_ops = Vec::new();
     let mut drop_table_ops = Vec::new();
     let mut ambiguous = Vec::new();
+    let mut warnings = Vec::new();
 
-    // Check for possible table renames.
-    let mut rename_dropped = BTreeSet::new();
-    let mut rename_added = BTreeSet::new();
+    // ---- N:M table rename detection ----------------------------
+    let mut rename_dropped: BTreeSet<&str> = BTreeSet::new();
+    let mut rename_added: BTreeSet<&str> = BTreeSet::new();
 
-    if dropped_tables.len() == 1 && added_tables.len() == 1 {
-        let old_table = &current.tables[dropped_tables[0]];
-        let new_table = &desired.tables[added_tables[0]];
-        if tables_have_same_columns(old_table, new_table) {
-            ambiguous.push(AmbiguousChange::PossibleTableRename {
-                old_table: dropped_tables[0].to_string(),
-                new_table: added_tables[0].to_string(),
-            });
-            rename_dropped.insert(dropped_tables[0]);
-            rename_added.insert(added_tables[0]);
+    // Build candidate pairs: (dropped, added, similarity)
+    let mut candidates: Vec<(&str, &str, f64)> = Vec::new();
+    for &d in &dropped_tables {
+        let old_table = &current.tables[d];
+        for &a in &added_tables {
+            let new_table = &desired.tables[a];
+            if tables_have_same_columns(old_table, new_table) {
+                let sim = similarity(d, a);
+                candidates.push((d, a, sim));
+            }
         }
     }
+    candidates.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap());
+    for (d, a, sim) in &candidates {
+        if rename_dropped.contains(d) || rename_added.contains(a) {
+            continue;
+        }
+        ambiguous.push(AmbiguousChange::PossibleTableRename {
+            old_table: d.to_string(),
+            new_table: a.to_string(),
+            similarity: *sim,
+        });
+        rename_dropped.insert(d);
+        rename_added.insert(a);
+    }
 
-    // New tables -> CreateTable.
+    // ---- New tables -> CreateTable -----------------------------
     for &name in &added_tables {
         if rename_added.contains(name) {
             continue;
@@ -242,7 +577,7 @@ pub fn auto_diff_schema(current: &SchemaSnapshot, desired: &SchemaSnapshot) -> S
         }));
     }
 
-    // Existing tables -> diff columns.
+    // ---- Existing tables -> diff columns -----------------------
     for &name in &common_tables {
         let old_table = &current.tables[name];
         let new_table = &desired.tables[name];
@@ -251,15 +586,20 @@ pub fn auto_diff_schema(current: &SchemaSnapshot, desired: &SchemaSnapshot) -> S
         for op in table_diff.operations {
             match &op {
                 Operation::AddColumn(_) => add_ops.push(op),
-                Operation::AlterColumn(_) => alter_ops.push(op),
-                Operation::DropColumn(_) => drop_col_ops.push(op),
+                Operation::AlterColumn(_) => {
+                    alter_ops.push(op);
+                }
+                Operation::DropColumn(_) => {
+                    drop_col_ops.push(op);
+                }
                 _ => add_ops.push(op),
             }
         }
         ambiguous.extend(table_diff.ambiguous);
+        warnings.extend(table_diff.warnings);
     }
 
-    // Dropped tables -> DropTable.
+    // ---- Dropped tables -> DropTable ---------------------------
     for &name in &dropped_tables {
         if rename_dropped.contains(name) {
             continue;
@@ -282,6 +622,7 @@ pub fn auto_diff_schema(current: &SchemaSnapshot, desired: &SchemaSnapshot) -> S
     SchemaDiff {
         operations,
         ambiguous,
+        warnings,
     }
 }
 
@@ -316,11 +657,12 @@ fn tables_have_same_columns(a: &TableSnapshot, b: &TableSnapshot) -> bool {
 mod tests {
     use super::*;
     use crate::ast::DataType;
-    use crate::migrations::column_builder::DefaultValue;
+    use crate::migrations::column_builder::{DefaultValue, ForeignKeyAction};
+    use crate::migrations::operation::IndexType;
 
-    // ================================================================
+    // ============================================================
     // Helpers
-    // ================================================================
+    // ============================================================
 
     fn col(name: &str, data_type: DataType, nullable: bool) -> ColumnSnapshot {
         ColumnSnapshot {
@@ -350,6 +692,8 @@ mod tests {
         TableSnapshot {
             name: name.to_string(),
             columns,
+            indexes: vec![],
+            foreign_keys: vec![],
         }
     }
 
@@ -361,9 +705,31 @@ mod tests {
         s
     }
 
-    // ================================================================
-    // Tests
-    // ================================================================
+    // ============================================================
+    // Levenshtein / similarity unit tests
+    // ============================================================
+
+    #[test]
+    fn levenshtein_basic() {
+        assert_eq!(levenshtein("", ""), 0);
+        assert_eq!(levenshtein("abc", "abc"), 0);
+        assert_eq!(levenshtein("abc", ""), 3);
+        assert_eq!(levenshtein("", "abc"), 3);
+        assert_eq!(levenshtein("kitten", "sitting"), 3);
+    }
+
+    #[test]
+    fn similarity_basic() {
+        assert!((similarity("abc", "abc") - 1.0).abs() < f64::EPSILON);
+        assert!((similarity("", "") - 1.0).abs() < f64::EPSILON);
+        // "name" vs "full_name": dist 5, max 9, sim ~0.44
+        let s = similarity("name", "full_name");
+        assert!(s > 0.4 && s < 0.5, "sim={s}");
+    }
+
+    // ============================================================
+    // Original diff tests (updated for new SchemaDiff fields)
+    // ============================================================
 
     #[test]
     fn no_changes_produces_empty_diff() {
@@ -383,14 +749,11 @@ mod tests {
         let current = schema(vec![]);
         let desired = schema(vec![table("users", vec![pk_col("id", DataType::Bigint)])]);
         let diff = auto_diff_schema(&current, &desired);
-
         assert_eq!(diff.operations.len(), 1);
-        match &diff.operations[0] {
-            Operation::CreateTable(op) => {
-                assert_eq!(op.name, "users");
-            }
-            other => panic!("Expected CreateTable, got {other:?}"),
-        }
+        assert!(matches!(
+            &diff.operations[0],
+            Operation::CreateTable(op) if op.name == "users"
+        ));
     }
 
     #[test]
@@ -398,14 +761,11 @@ mod tests {
         let current = schema(vec![table("users", vec![pk_col("id", DataType::Bigint)])]);
         let desired = schema(vec![]);
         let diff = auto_diff_schema(&current, &desired);
-
         assert_eq!(diff.operations.len(), 1);
-        match &diff.operations[0] {
-            Operation::DropTable(op) => {
-                assert_eq!(op.name, "users");
-            }
-            other => panic!("Expected DropTable, got {other:?}"),
-        }
+        assert!(matches!(
+            &diff.operations[0],
+            Operation::DropTable(op) if op.name == "users"
+        ));
     }
 
     #[test]
@@ -419,15 +779,13 @@ mod tests {
             ],
         );
         let diff = diff_table("users", &old, &new);
-
         assert_eq!(diff.operations.len(), 1);
-        match &diff.operations[0] {
-            Operation::AddColumn(op) => {
-                assert_eq!(op.table, "users");
-                assert_eq!(op.column.name, "email");
-            }
-            other => panic!("Expected AddColumn, got {other:?}"),
-        }
+        assert!(matches!(
+            &diff.operations[0],
+            Operation::AddColumn(op)
+                if op.table == "users"
+                    && op.column.name == "email"
+        ));
     }
 
     #[test]
@@ -441,15 +799,12 @@ mod tests {
         );
         let new = table("users", vec![pk_col("id", DataType::Bigint)]);
         let diff = diff_table("users", &old, &new);
-
         assert_eq!(diff.operations.len(), 1);
-        match &diff.operations[0] {
-            Operation::DropColumn(op) => {
-                assert_eq!(op.table, "users");
-                assert_eq!(op.column, "email");
-            }
-            other => panic!("Expected DropColumn, got {other:?}"),
-        }
+        assert!(matches!(
+            &diff.operations[0],
+            Operation::DropColumn(op)
+                if op.table == "users" && op.column == "email"
+        ));
     }
 
     #[test]
@@ -469,15 +824,16 @@ mod tests {
             ],
         );
         let diff = diff_table("users", &old, &new);
-
         assert_eq!(diff.operations.len(), 1);
-        match &diff.operations[0] {
-            Operation::AlterColumn(op) => {
-                assert_eq!(op.column, "score");
-                assert_eq!(op.change, AlterColumnChange::SetDataType(DataType::Bigint));
-            }
-            other => panic!("Expected AlterColumn, got {other:?}"),
-        }
+        assert!(matches!(
+            &diff.operations[0],
+            Operation::AlterColumn(op)
+                if op.column == "score"
+                    && op.change
+                        == AlterColumnChange::SetDataType(
+                            DataType::Bigint
+                        )
+        ));
     }
 
     #[test]
@@ -497,15 +853,14 @@ mod tests {
             ],
         );
         let diff = diff_table("users", &old, &new);
-
         assert_eq!(diff.operations.len(), 1);
-        match &diff.operations[0] {
-            Operation::AlterColumn(op) => {
-                assert_eq!(op.column, "email");
-                assert_eq!(op.change, AlterColumnChange::SetNullable(true));
-            }
-            other => panic!("Expected AlterColumn, got {other:?}"),
-        }
+        assert!(matches!(
+            &diff.operations[0],
+            Operation::AlterColumn(op)
+                if op.column == "email"
+                    && op.change
+                        == AlterColumnChange::SetNullable(true)
+        ));
     }
 
     #[test]
@@ -515,17 +870,17 @@ mod tests {
         new_col.default = Some(DefaultValue::Expression("TRUE".into()));
         let new = table("t", vec![new_col]);
         let diff = diff_table("t", &old, &new);
-
         assert_eq!(diff.operations.len(), 1);
-        match &diff.operations[0] {
-            Operation::AlterColumn(op) => {
-                assert_eq!(
-                    op.change,
-                    AlterColumnChange::SetDefault(DefaultValue::Expression("TRUE".into()))
-                );
-            }
-            other => panic!("Expected AlterColumn, got {other:?}"),
-        }
+        assert!(matches!(
+            &diff.operations[0],
+            Operation::AlterColumn(op)
+                if matches!(
+                    &op.change,
+                    AlterColumnChange::SetDefault(
+                        DefaultValue::Expression(s)
+                    ) if s == "TRUE"
+                )
+        ));
     }
 
     #[test]
@@ -540,15 +895,14 @@ mod tests {
 
         let diff = diff_table("t", &old, &new);
         assert_eq!(diff.operations.len(), 1);
-        match &diff.operations[0] {
-            Operation::AlterColumn(op) => {
-                assert_eq!(
-                    op.change,
-                    AlterColumnChange::SetDefault(DefaultValue::Integer(1))
-                );
-            }
-            other => panic!("Expected AlterColumn, got {other:?}"),
-        }
+        assert!(matches!(
+            &diff.operations[0],
+            Operation::AlterColumn(op)
+                if op.change
+                    == AlterColumnChange::SetDefault(
+                        DefaultValue::Integer(1)
+                    )
+        ));
     }
 
     #[test]
@@ -558,18 +912,21 @@ mod tests {
         let old = table("t", vec![old_col]);
         let new = table("t", vec![col("active", DataType::Boolean, false)]);
         let diff = diff_table("t", &old, &new);
-
         assert_eq!(diff.operations.len(), 1);
-        match &diff.operations[0] {
-            Operation::AlterColumn(op) => {
-                assert_eq!(op.change, AlterColumnChange::DropDefault);
-            }
-            other => panic!("Expected AlterColumn, got {other:?}"),
-        }
+        assert!(matches!(
+            &diff.operations[0],
+            Operation::AlterColumn(op)
+                if op.change == AlterColumnChange::DropDefault
+        ));
     }
+
+    // ============================================================
+    // Rename detection (N:M with similarity)
+    // ============================================================
 
     #[test]
     fn ambiguous_rename_detected() {
+        // "name" -> "full_name" (sim ~0.44, above threshold 0.4)
         let old = table(
             "users",
             vec![
@@ -586,7 +943,6 @@ mod tests {
         );
         let diff = diff_table("users", &old, &new);
 
-        // Should NOT produce add/drop, but flag as ambiguous.
         assert!(diff.operations.is_empty());
         assert_eq!(diff.ambiguous.len(), 1);
         match &diff.ambiguous[0] {
@@ -594,12 +950,15 @@ mod tests {
                 table,
                 old_column,
                 new_column,
+                ..
             } => {
                 assert_eq!(table, "users");
                 assert_eq!(old_column, "name");
                 assert_eq!(new_column, "full_name");
             }
-            other => panic!("Expected PossibleRename, got {other:?}"),
+            other => {
+                panic!("Expected PossibleRename, got {other:?}")
+            }
         }
     }
 
@@ -620,10 +979,59 @@ mod tests {
             ],
         );
         let diff = diff_table("users", &old, &new);
-
-        // Different types -> regular add+drop, no ambiguity.
         assert!(diff.ambiguous.is_empty());
         assert_eq!(diff.operations.len(), 2);
+    }
+
+    #[test]
+    fn low_similarity_produces_add_drop_not_rename() {
+        // "body" vs "summary" — similarity ~0.14, below threshold.
+        let old = table(
+            "t",
+            vec![
+                pk_col("id", DataType::Bigint),
+                col("body", DataType::Text, false),
+            ],
+        );
+        let new = table(
+            "t",
+            vec![
+                pk_col("id", DataType::Bigint),
+                col("summary", DataType::Text, false),
+            ],
+        );
+        let diff = diff_table("t", &old, &new);
+
+        // Below threshold → no rename, just drop + add.
+        assert!(diff.ambiguous.is_empty());
+        assert_eq!(diff.operations.len(), 2);
+    }
+
+    #[test]
+    fn n_m_rename_detection() {
+        // Two drops + two adds with matching types.
+        // "user_name" → "username" (high sim), "addr" → "address"
+        // (high sim).
+        let old = table(
+            "t",
+            vec![
+                pk_col("id", DataType::Bigint),
+                col("user_name", DataType::Text, false),
+                col("addr", DataType::Text, false),
+            ],
+        );
+        let new = table(
+            "t",
+            vec![
+                pk_col("id", DataType::Bigint),
+                col("username", DataType::Text, false),
+                col("address", DataType::Text, false),
+            ],
+        );
+        let diff = diff_table("t", &old, &new);
+
+        assert!(diff.operations.is_empty());
+        assert_eq!(diff.ambiguous.len(), 2);
     }
 
     #[test]
@@ -646,21 +1054,15 @@ mod tests {
         );
         let diff = diff_table("users", &old, &new);
 
-        // name: type change + nullable change = 2 alter ops
-        // old_field dropped, new_field added (different types, no
-        // rename ambiguity)
+        // name: type + nullable = 2 alters
+        // old_field→new_field: different types → no rename →
+        // add + drop = 2
         assert!(diff.ambiguous.is_empty());
-        // AddColumn(new_field) + AlterColumn(name type) +
-        // AlterColumn(name nullable) + DropColumn(old_field) = 4
         assert_eq!(diff.operations.len(), 4);
     }
 
     #[test]
     fn operation_ordering_in_schema_diff() {
-        // Create a scenario with create, alter, drop operations.
-        // Use different column structures so table rename detection
-        // does not fire. Use multiple column changes so column
-        // rename detection does not fire either.
         let current = schema(vec![
             table(
                 "to_drop",
@@ -673,8 +1075,8 @@ mod tests {
                 "to_alter",
                 vec![
                     pk_col("id", DataType::Bigint),
-                    col("old_a", DataType::Text, false),
-                    col("old_b", DataType::Integer, false),
+                    col("alpha", DataType::Text, false),
+                    col("beta", DataType::Integer, false),
                 ],
             ),
         ]);
@@ -684,15 +1086,13 @@ mod tests {
                 "to_alter",
                 vec![
                     pk_col("id", DataType::Bigint),
-                    col("new_a", DataType::Text, false),
-                    col("new_b", DataType::Integer, false),
+                    col("xxx", DataType::Boolean, false),
+                    col("yyy", DataType::Real, false),
                 ],
             ),
         ]);
         let diff = auto_diff_schema(&current, &desired);
 
-        // Verify ordering: CreateTable first, then
-        // AddColumn/AlterColumn, then DropColumn, then DropTable.
         let mut saw_create = false;
         let mut saw_add = false;
         let mut saw_drop_col = false;
@@ -707,12 +1107,12 @@ mod tests {
                 Operation::AddColumn(_) => {
                     assert!(
                         !saw_drop_col && !saw_drop_table,
-                        "AddColumn must come before DropColumn/DropTable"
+                        "AddColumn before DropColumn/DropTable"
                     );
                     saw_add = true;
                 }
                 Operation::DropColumn(_) => {
-                    assert!(!saw_drop_table, "DropColumn must come before DropTable");
+                    assert!(!saw_drop_table, "DropColumn before DropTable");
                     saw_drop_col = true;
                 }
                 Operation::DropTable(_) => {
@@ -752,6 +1152,7 @@ mod tests {
             AmbiguousChange::PossibleTableRename {
                 old_table,
                 new_table,
+                ..
             } => {
                 assert_eq!(old_table, "users");
                 assert_eq!(new_table, "accounts");
@@ -804,14 +1205,256 @@ mod tests {
         let current = table("items", vec![pk_col("id", DataType::Bigint)]);
         let diff = auto_diff_table::<MyTable>(&current, &dialect);
 
-        // Should detect that "title" column was added.
         assert_eq!(diff.operations.len(), 1);
-        match &diff.operations[0] {
-            Operation::AddColumn(op) => {
-                assert_eq!(op.column.name, "title");
-                assert_eq!(op.column.data_type, DataType::Text);
-            }
-            other => panic!("Expected AddColumn, got {other:?}"),
-        }
+        assert!(matches!(
+            &diff.operations[0],
+            Operation::AddColumn(op)
+                if op.column.name == "title"
+                    && op.column.data_type == DataType::Text
+        ));
+    }
+
+    // ============================================================
+    // Unique change detection
+    // ============================================================
+
+    #[test]
+    fn unique_change_detected() {
+        let mut old_col = col("email", DataType::Text, false);
+        old_col.unique = false;
+        let old = table("users", vec![old_col]);
+
+        let mut new_col = col("email", DataType::Text, false);
+        new_col.unique = true;
+        let new = table("users", vec![new_col]);
+
+        let diff = diff_table("users", &old, &new);
+        assert!(diff.operations.iter().any(|op| matches!(
+            op,
+            Operation::AlterColumn(a)
+                if a.column == "email"
+                    && a.change
+                        == AlterColumnChange::SetUnique(true)
+        )));
+    }
+
+    // ============================================================
+    // Warning detection
+    // ============================================================
+
+    #[test]
+    fn primary_key_change_emits_warning() {
+        let mut old_col = col("email", DataType::Text, false);
+        old_col.primary_key = false;
+        let old = table("t", vec![old_col]);
+
+        let mut new_col = col("email", DataType::Text, false);
+        new_col.primary_key = true;
+        let new = table("t", vec![new_col]);
+
+        let diff = diff_table("t", &old, &new);
+        assert!(diff.warnings.iter().any(|w| matches!(
+            w,
+            DiffWarning::PrimaryKeyChange {
+                column,
+                new_value: true,
+                ..
+            } if column == "email"
+        )));
+    }
+
+    #[test]
+    fn autoincrement_change_emits_warning() {
+        let mut old_col = col("id", DataType::Bigint, false);
+        old_col.autoincrement = false;
+        let old = table("t", vec![old_col]);
+
+        let mut new_col = col("id", DataType::Bigint, false);
+        new_col.autoincrement = true;
+        let new = table("t", vec![new_col]);
+
+        let diff = diff_table("t", &old, &new);
+        assert!(diff.warnings.iter().any(|w| matches!(
+            w,
+            DiffWarning::AutoincrementChange {
+                column,
+                new_value: true,
+                ..
+            } if column == "id"
+        )));
+    }
+
+    #[test]
+    fn column_order_change_emits_warning() {
+        let old = table(
+            "t",
+            vec![
+                col("a", DataType::Text, false),
+                col("b", DataType::Text, false),
+            ],
+        );
+        let new = table(
+            "t",
+            vec![
+                col("b", DataType::Text, false),
+                col("a", DataType::Text, false),
+            ],
+        );
+        let diff = diff_table("t", &old, &new);
+        assert!(
+            diff.warnings
+                .iter()
+                .any(|w| matches!(w, DiffWarning::ColumnOrderChanged { .. }))
+        );
+    }
+
+    // ============================================================
+    // Index diff
+    // ============================================================
+
+    #[test]
+    fn index_added_detected() {
+        let old = table("t", vec![col("a", DataType::Text, false)]);
+        let mut new = table("t", vec![col("a", DataType::Text, false)]);
+        new.indexes.push(IndexSnapshot {
+            name: "idx_a".into(),
+            columns: vec!["a".into()],
+            unique: false,
+            index_type: IndexType::BTree,
+            condition: None,
+        });
+        let diff = diff_table("t", &old, &new);
+        assert!(
+            diff.operations
+                .iter()
+                .any(|op| matches!(op, Operation::CreateIndex(ci) if ci.name == "idx_a"))
+        );
+    }
+
+    #[test]
+    fn index_dropped_detected() {
+        let mut old = table("t", vec![col("a", DataType::Text, false)]);
+        old.indexes.push(IndexSnapshot {
+            name: "idx_a".into(),
+            columns: vec!["a".into()],
+            unique: false,
+            index_type: IndexType::BTree,
+            condition: None,
+        });
+        let new = table("t", vec![col("a", DataType::Text, false)]);
+        let diff = diff_table("t", &old, &new);
+        assert!(
+            diff.operations
+                .iter()
+                .any(|op| matches!(op, Operation::DropIndex(di) if di.name == "idx_a"))
+        );
+    }
+
+    // ============================================================
+    // Foreign key diff
+    // ============================================================
+
+    #[test]
+    fn fk_added_detected() {
+        let old = table("t", vec![col("a", DataType::Bigint, false)]);
+        let mut new = table("t", vec![col("a", DataType::Bigint, false)]);
+        new.foreign_keys.push(ForeignKeySnapshot {
+            name: Some("fk_a".into()),
+            columns: vec!["a".into()],
+            references_table: "other".into(),
+            references_columns: vec!["id".into()],
+            on_delete: Some(ForeignKeyAction::Cascade),
+            on_update: None,
+        });
+        let diff = diff_table("t", &old, &new);
+        assert!(diff.operations.iter().any(
+            |op| matches!(op, Operation::AddForeignKey(fk) if fk.name == Some("fk_a".into()))
+        ));
+    }
+
+    #[test]
+    fn fk_dropped_detected() {
+        let mut old = table("t", vec![col("a", DataType::Bigint, false)]);
+        old.foreign_keys.push(ForeignKeySnapshot {
+            name: Some("fk_a".into()),
+            columns: vec!["a".into()],
+            references_table: "other".into(),
+            references_columns: vec!["id".into()],
+            on_delete: None,
+            on_update: None,
+        });
+        let new = table("t", vec![col("a", DataType::Bigint, false)]);
+        let diff = diff_table("t", &old, &new);
+        assert!(
+            diff.operations
+                .iter()
+                .any(|op| matches!(op, Operation::DropForeignKey(fk) if fk.name == "fk_a"))
+        );
+    }
+
+    // ============================================================
+    // Reversibility
+    // ============================================================
+
+    #[test]
+    fn reversible_diff() {
+        let old = table("t", vec![pk_col("id", DataType::Bigint)]);
+        let new = table(
+            "t",
+            vec![
+                pk_col("id", DataType::Bigint),
+                col("email", DataType::Text, true),
+            ],
+        );
+        let diff = diff_table("t", &old, &new);
+        assert!(diff.is_reversible());
+
+        let reversed = diff.reverse().unwrap();
+        assert_eq!(reversed.operations.len(), 1);
+        assert!(matches!(
+            &reversed.operations[0],
+            Operation::DropColumn(dc)
+                if dc.column == "email"
+        ));
+    }
+
+    #[test]
+    fn non_reversible_diff() {
+        let old = table(
+            "t",
+            vec![
+                pk_col("id", DataType::Bigint),
+                col("email", DataType::Text, true),
+            ],
+        );
+        let new = table("t", vec![pk_col("id", DataType::Bigint)]);
+        let diff = diff_table("t", &old, &new);
+
+        // DropColumn is not reversible (no column definition).
+        assert!(!diff.is_reversible());
+        assert_eq!(diff.non_reversible_operations().len(), 1);
+        assert!(diff.reverse().is_none());
+    }
+
+    // ============================================================
+    // to_sql convenience
+    // ============================================================
+
+    #[test]
+    fn to_sql_produces_output() {
+        use crate::migrations::SqliteDialect;
+
+        let old = table("t", vec![pk_col("id", DataType::Bigint)]);
+        let new = table(
+            "t",
+            vec![
+                pk_col("id", DataType::Bigint),
+                col("name", DataType::Text, false),
+            ],
+        );
+        let diff = diff_table("t", &old, &new);
+        let sqls = diff.to_sql(&SqliteDialect::new());
+        assert_eq!(sqls.len(), 1);
+        assert!(sqls[0].contains("ADD COLUMN"));
     }
 }

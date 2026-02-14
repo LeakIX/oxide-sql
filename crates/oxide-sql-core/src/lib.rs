@@ -673,6 +673,8 @@
 //!             )),
 //!         },
 //!     ],
+//!     indexes: vec![],
+//!     foreign_keys: vec![],
 //! };
 //!
 //! let diff = auto_diff_table::<ArticleV2Table>(&current, &dialect);
@@ -712,6 +714,8 @@
 //!         autoincrement: true,
 //!         default: None,
 //!     }],
+//!     indexes: vec![],
+//!     foreign_keys: vec![],
 //! });
 //! desired.add_table(TableSnapshot {
 //!     name: "users".into(),
@@ -724,6 +728,8 @@
 //!         autoincrement: true,
 //!         default: None,
 //!     }],
+//!     indexes: vec![],
+//!     foreign_keys: vec![],
 //! });
 //! desired.add_table(TableSnapshot {
 //!     name: "posts".into(),
@@ -736,6 +742,8 @@
 //!         autoincrement: true,
 //!         default: None,
 //!     }],
+//!     indexes: vec![],
+//!     foreign_keys: vec![],
 //! });
 //!
 //! let diff = auto_diff_schema(&current, &desired);
@@ -788,6 +796,8 @@
 //!         autoincrement: false,
 //!         default: None,
 //!     }],
+//!     indexes: vec![],
+//!     foreign_keys: vec![],
 //! });
 //!
 //! // "desired" has the same structure but the table is named "accounts".
@@ -803,6 +813,8 @@
 //!         autoincrement: false,
 //!         default: None,
 //!     }],
+//!     indexes: vec![],
+//!     foreign_keys: vec![],
 //! });
 //!
 //! let diff = auto_diff_schema(&current, &desired);
@@ -813,6 +825,7 @@
 //!     AmbiguousChange::PossibleTableRename {
 //!         old_table,
 //!         new_table,
+//!         ..
 //!     } if old_table == "users" && new_table == "accounts"
 //! ));
 //! ```
@@ -885,8 +898,9 @@ pub use builder::{
 };
 pub use lexer::{Lexer, Token, TokenKind};
 pub use migrations::{
-    AmbiguousChange, ColumnSnapshot, Introspect, SchemaDiff, SchemaSnapshot, TableSnapshot,
-    auto_diff_schema, auto_diff_table,
+    AmbiguousChange, ColumnSnapshot, DiffWarning, ForeignKeySnapshot, IndexSnapshot, Introspect,
+    SchemaDiff, SchemaSnapshot, TableSnapshot, auto_diff_schema, auto_diff_table,
+    generate_migration_code,
 };
 pub use parser::{ParseError, Parser};
 pub use schema::{

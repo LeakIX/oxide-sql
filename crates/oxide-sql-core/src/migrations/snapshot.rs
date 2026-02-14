@@ -10,8 +10,40 @@ use std::collections::BTreeMap;
 use crate::ast::DataType;
 use crate::schema::{RustTypeMapping, TableSchema};
 
-use super::column_builder::DefaultValue;
-use super::operation::strip_option;
+use super::column_builder::{DefaultValue, ForeignKeyAction};
+use super::operation::{IndexType, strip_option};
+
+/// A snapshot of a database index.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexSnapshot {
+    /// Index name.
+    pub name: String,
+    /// Columns covered by the index.
+    pub columns: Vec<String>,
+    /// Whether this is a UNIQUE index.
+    pub unique: bool,
+    /// Index type (BTree, Hash, etc.).
+    pub index_type: IndexType,
+    /// Partial index condition (WHERE clause), if any.
+    pub condition: Option<String>,
+}
+
+/// A snapshot of a foreign key constraint.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForeignKeySnapshot {
+    /// Optional constraint name.
+    pub name: Option<String>,
+    /// Columns in this table.
+    pub columns: Vec<String>,
+    /// Referenced table.
+    pub references_table: String,
+    /// Referenced columns.
+    pub references_columns: Vec<String>,
+    /// ON DELETE action.
+    pub on_delete: Option<ForeignKeyAction>,
+    /// ON UPDATE action.
+    pub on_update: Option<ForeignKeyAction>,
+}
 
 /// A snapshot of a single column's resolved schema.
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +71,10 @@ pub struct TableSnapshot {
     pub name: String,
     /// Columns in declaration order.
     pub columns: Vec<ColumnSnapshot>,
+    /// Indexes on this table.
+    pub indexes: Vec<IndexSnapshot>,
+    /// Foreign key constraints on this table.
+    pub foreign_keys: Vec<ForeignKeySnapshot>,
 }
 
 impl TableSnapshot {
@@ -68,6 +104,8 @@ impl TableSnapshot {
         Self {
             name: T::NAME.to_string(),
             columns,
+            indexes: vec![],
+            foreign_keys: vec![],
         }
     }
 

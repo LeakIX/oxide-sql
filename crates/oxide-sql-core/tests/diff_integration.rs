@@ -5,8 +5,7 @@
 //! valid SQL via `MigrationDialect::generate_sql()`.
 
 use oxide_sql_core::migrations::{
-    AlterColumnChange, AmbiguousChange, MigrationDialect, Operation, SqliteDialect, TableSnapshot,
-    auto_diff_table,
+    AlterColumnChange, MigrationDialect, Operation, SqliteDialect, TableSnapshot, auto_diff_table,
 };
 use oxide_sql_derive::Table;
 
@@ -28,8 +27,8 @@ pub struct ArticleV1 {
 
 // =============================================================================
 // V2: Evolved schema — added column, changed default, dropped column
-// The body->summary change (same type) should be flagged as a
-// possible rename rather than a drop+add.
+// The body->summary change (same type but low name similarity) should
+// produce a drop+add rather than a possible rename.
 // =============================================================================
 
 #[allow(dead_code)]
@@ -64,27 +63,37 @@ pub struct ArticleV3 {
 }
 
 #[test]
-fn diff_v1_to_v2_detects_possible_rename() {
+fn diff_v1_to_v2_produces_drop_and_add() {
     let dialect = SqliteDialect::new();
     let v1 = TableSnapshot::from_table_schema::<ArticleV1Table>(&dialect);
     let diff = auto_diff_table::<ArticleV2Table>(&v1, &dialect);
 
     assert!(!diff.is_empty());
 
-    // body -> summary is same type (Text), so should be flagged
-    // as a possible rename.
-    assert_eq!(diff.ambiguous.len(), 1);
-    match &diff.ambiguous[0] {
-        AmbiguousChange::PossibleRename {
-            old_column,
-            new_column,
-            ..
-        } => {
-            assert_eq!(old_column, "body");
-            assert_eq!(new_column, "summary");
-        }
-        other => panic!("Expected PossibleRename, got {other:?}"),
-    }
+    // "body" → "summary" similarity is ~0.14 (below 0.4 threshold),
+    // so it should produce a drop + add, not a possible rename.
+    assert!(
+        diff.ambiguous.is_empty(),
+        "Low-similarity column change should not be flagged as rename"
+    );
+
+    // Should drop "body" column.
+    let has_drop_body = diff.operations.iter().any(|op| {
+        matches!(
+            op,
+            Operation::DropColumn(dc) if dc.column == "body"
+        )
+    });
+    assert!(has_drop_body, "Should drop 'body' column");
+
+    // Should add "summary" column.
+    let has_add_summary = diff.operations.iter().any(|op| {
+        matches!(
+            op,
+            Operation::AddColumn(ac) if ac.column.name == "summary"
+        )
+    });
+    assert!(has_add_summary, "Should add 'summary' column");
 
     // The default change on published should still be detected.
     let has_set_default = diff.operations.iter().any(|op| {

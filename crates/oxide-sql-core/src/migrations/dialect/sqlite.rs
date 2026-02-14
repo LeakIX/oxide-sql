@@ -98,6 +98,20 @@ impl MigrationDialect for SqliteDialect {
                     op.table, op.column
                 )
             }
+            AlterColumnChange::SetUnique(_) => {
+                format!(
+                    "-- SQLite does not support ALTER COLUMN UNIQUE directly for {}.{}; \
+                     table recreation required",
+                    op.table, op.column
+                )
+            }
+            AlterColumnChange::SetAutoincrement(_) => {
+                format!(
+                    "-- SQLite does not support ALTER autoincrement for {}.{}; \
+                     table recreation required",
+                    op.table, op.column
+                )
+            }
         }
     }
 

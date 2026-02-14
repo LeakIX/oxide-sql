@@ -40,6 +40,7 @@
 //! }
 //! ```
 
+pub mod codegen;
 mod column_builder;
 pub mod dialect;
 pub mod diff;
@@ -50,13 +51,14 @@ pub mod snapshot;
 mod state;
 mod table_builder;
 
+pub use codegen::generate_migration_code;
 pub use column_builder::{
-    ColumnBuilder, ColumnDefinition, DefaultValue, ForeignKeyRef, bigint, binary, blob, boolean,
-    char, date, datetime, decimal, double, integer, numeric, real, smallint, text, time, timestamp,
-    varbinary, varchar,
+    ColumnBuilder, ColumnDefinition, DefaultValue, ForeignKeyAction, ForeignKeyRef, bigint, binary,
+    blob, boolean, char, date, datetime, decimal, double, integer, numeric, real, smallint, text,
+    time, timestamp, varbinary, varchar,
 };
 pub use dialect::{DuckDbDialect, MigrationDialect, PostgresDialect, SqliteDialect};
-pub use diff::{AmbiguousChange, SchemaDiff, auto_diff_schema, auto_diff_table};
+pub use diff::{AmbiguousChange, DiffWarning, SchemaDiff, auto_diff_schema, auto_diff_table};
 pub use introspect::Introspect;
 pub use migration::{Migration, MigrationRunner, MigrationStatus};
 pub use operation::{
@@ -64,7 +66,9 @@ pub use operation::{
     DropColumnOp, DropForeignKeyOp, DropIndexOp, DropTableOp, IndexType, Operation, RawSqlOp,
     RenameColumnOp, RenameTableOp,
 };
-pub use snapshot::{ColumnSnapshot, SchemaSnapshot, TableSnapshot};
+pub use snapshot::{
+    ColumnSnapshot, ForeignKeySnapshot, IndexSnapshot, SchemaSnapshot, TableSnapshot,
+};
 pub use state::MigrationState;
 pub use table_builder::{
     CreateTableBuilder, DropTableBuilder, HasColumns, HasName, NoColumns, NoName,

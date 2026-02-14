@@ -336,6 +336,11 @@ pub enum AlterColumnChange {
     SetDefault(super::column_builder::DefaultValue),
     /// Remove the default value.
     DropDefault,
+    /// Add or drop a UNIQUE constraint.
+    SetUnique(bool),
+    /// Mark autoincrement change (informational — most DBs cannot
+    /// alter this; prefer using [`DiffWarning`] instead).
+    SetAutoincrement(bool),
 }
 
 /// Alter column operation.
