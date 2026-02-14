@@ -39,7 +39,23 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Upgrade to Rust edition 2024 ([4034f8b])
+- **BREAKING**: Upgrade to Rust edition 2024 — requires a Rust toolchain
+  that supports edition 2024 ([4034f8b])
+- **BREAKING**: `TableSnapshot` struct gained two required fields:
+  `indexes: Vec<IndexSnapshot>` and `foreign_keys: Vec<ForeignKeySnapshot>`.
+  Add `indexes: vec![], foreign_keys: vec![]` to existing struct literals
+  ([119564b])
+- **BREAKING**: `SchemaDiff` struct gained a required `warnings:
+  Vec<DiffWarning>` field. Add `warnings: vec![]` to existing struct
+  literals ([119564b])
+- **BREAKING**: `AmbiguousChange::PossibleRename` and
+  `PossibleTableRename` variants gained a `similarity: f64` field.
+  Update pattern matches to include `similarity` or use `..` ([119564b])
+- **BREAKING**: `AlterColumnChange` enum gained `SetUnique(bool)` and
+  `SetAutoincrement(bool)` variants. Exhaustive match statements must
+  handle the new variants ([119564b])
+- **BREAKING**: `SchemaDiff::is_empty()` now also returns `false` when
+  `warnings` is non-empty ([119564b])
 - Rename `parser/parser.rs` to `parser/core.rs` with module docs
   ([d359403])
 
