@@ -1171,7 +1171,7 @@ checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
 name = "oxide-sql-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "duckdb",
  "oxide-sql-derive",
@@ -1179,7 +1179,7 @@ dependencies = [
 
 [[package]]
 name = "oxide-sql-derive"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1188,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "oxide-sql-sqlite"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "oxide-sql-core",
 ]

@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 authors = ["Danny Willems"]
 license = "MIT"
@@ -15,9 +15,9 @@ repository = "https://github.com/leakix/oxide-sql"
 homepage = "https://leakix.github.io/oxide-sql/"
 
 [workspace.dependencies]
-oxide-sql-core = { path = "crates/oxide-sql-core", version = "0.1.0" }
-oxide-sql-derive = { path = "crates/oxide-sql-derive", version = "0.1.0" }
-oxide-sql-sqlite = { path = "crates/oxide-sql-sqlite", version = "0.1.0" }
+oxide-sql-core = { path = "crates/oxide-sql-core", version = "0.2.0" }
+oxide-sql-derive = { path = "crates/oxide-sql-derive", version = "0.2.0" }
+oxide-sql-sqlite = { path = "crates/oxide-sql-sqlite", version = "0.2.0" }
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"
