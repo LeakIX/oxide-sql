@@ -3,20 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@docusaurus/core": "^3.7.0",
-    "@docusaurus/preset-classic": "^3.7.0",
+    "@docusaurus/core": "^3.10.0",
+    "@docusaurus/preset-classic": "^3.10.0",
     "@easyops-cn/docusaurus-search-local": "^0.55.1",
     "docusaurus-plugin-sass": "^0.2.5",
     "prism-react-renderer": "^2.4.1",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
-    "sass": "^1.98.0"
+    "sass": "^1.99.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "^3.7.0",
     "@docusaurus/types": "^3.7.0",
-    "typescript": "^5.7.3"
+    "typescript": "^6.0.2"
   }
 }
