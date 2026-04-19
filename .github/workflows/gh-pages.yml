@@ -45,7 +45,7 @@ jobs:
         run: cp -r target/doc doc/build/rustdoc
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: doc/build
 
