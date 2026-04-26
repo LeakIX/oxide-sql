@@ -14,4 +14,4 @@ categories = ["database", "parser-implementations"]
 
 [dev-dependencies]
 oxide-sql-derive.workspace = true
-duckdb = { version = "1.10501", features = ["bundled"] }
+duckdb = { version = "1.10502", features = ["bundled"] }
