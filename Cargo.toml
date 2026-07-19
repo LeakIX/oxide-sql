@@ -18,7 +18,7 @@ homepage = "https://leakix.github.io/oxide-sql/"
 oxide-sql-core = { path = "crates/oxide-sql-core", version = "0.2.0" }
 oxide-sql-derive = { path = "crates/oxide-sql-derive", version = "0.2.0" }
 oxide-sql-sqlite = { path = "crates/oxide-sql-sqlite", version = "0.2.0" }
-syn = { version = "2", features = ["full", "extra-traits"] }
+syn = { version = "3", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"
 
